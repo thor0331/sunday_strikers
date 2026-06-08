@@ -1,0 +1,138 @@
+import { PagePanel } from '../../components/common/PagePanel';
+import { Button } from '../../components/forms/Button';
+import { SelectField } from '../../components/forms/Field';
+import { MutationStatus } from '../../components/forms/MutationStatus';
+import { useMatchAvailability } from '../../hooks/useAvailability';
+import { useMatch, useSaveTeams, useSetCaptains } from '../../hooks/useMatches';
+import { usePlayers } from '../../hooks/usePlayers';
+import { matchRepository, type TeamAssignment } from '../../repositories/matchRepository';
+import { useMatchWorkflowStore } from '../../stores/matchWorkflowStore';
+import type { TeamSide } from '../../types/models';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+
+export function TeamFormationPage() {
+  const { matchId = '' } = useParams();
+  const navigate = useNavigate();
+  const { data: match } = useMatch(matchId);
+  const { data: players = [] } = usePlayers();
+  const { data: availability = [] } = useMatchAvailability(matchId);
+  const setCaptainsMutation = useSetCaptains();
+  const saveTeams = useSaveTeams();
+  const { teamAssignments, setPlayerTeam: setStoredPlayerTeam, resetTeams, setSelectedMatchId } = useMatchWorkflowStore();
+  const [teamACaptainId, setTeamACaptainId] = useState(match?.team_a_captain_id ?? '');
+  const [teamBCaptainId, setTeamBCaptainId] = useState(match?.team_b_captain_id ?? '');
+
+  useEffect(() => {
+    setSelectedMatchId(matchId || null);
+  }, [matchId, setSelectedMatchId]);
+
+  const availableIds = useMemo(() => new Set(availability.filter((item) => item.status === 'available').map((item) => item.player_id)), [availability]);
+  const activePlayers = useMemo(() => players.filter((player) => player.status === 'active'), [players]);
+  const selectablePlayers = useMemo(() => {
+    const available = activePlayers.filter((player) => availableIds.has(player.id));
+    return available.length > 0 ? available : activePlayers;
+  }, [activePlayers, availableIds]);
+
+  const resolvedTeamACaptainId = teamACaptainId || match?.team_a_captain_id || '';
+  const resolvedTeamBCaptainId = teamBCaptainId || match?.team_b_captain_id || '';
+
+  function setPlayerTeam(playerId: string, team: TeamSide | '') {
+    setStoredPlayerTeam(playerId, team || null);
+  }
+
+  function applyDraft() {
+    if (!resolvedTeamACaptainId || !resolvedTeamBCaptainId) return;
+    const draft = matchRepository.draftTeams(
+      selectablePlayers.map((player) => player.id),
+      resolvedTeamACaptainId,
+      resolvedTeamBCaptainId
+    );
+    resetTeams();
+    draft.forEach((assignment) => setStoredPlayerTeam(assignment.playerId, assignment.team));
+  }
+
+  function buildAssignments(): TeamAssignment[] {
+    const orderByTeam: Record<TeamSide, number> = { team_a: 0, team_b: 0 };
+    return selectablePlayers
+      .map((player) => {
+        const team = player.id === resolvedTeamACaptainId ? 'team_a' : player.id === resolvedTeamBCaptainId ? 'team_b' : teamAssignments[player.id];
+        if (team !== 'team_a' && team !== 'team_b') return null;
+        orderByTeam[team] += 1;
+        return {
+          playerId: player.id,
+          team,
+          battingOrder: orderByTeam[team],
+          isCaptain: player.id === resolvedTeamACaptainId || player.id === resolvedTeamBCaptainId
+        };
+      })
+      .filter((assignment): assignment is TeamAssignment => assignment !== null);
+  }
+
+  async function save() {
+    if (!matchId || !resolvedTeamACaptainId || !resolvedTeamBCaptainId) return;
+    await setCaptainsMutation.mutateAsync({ matchId, teamACaptainId: resolvedTeamACaptainId, teamBCaptainId: resolvedTeamBCaptainId });
+    await saveTeams.mutateAsync({ matchId, assignments: buildAssignments() });
+    navigate(`/admin/matches/${matchId}/toss`);
+  }
+
+  return (
+    <div className="space-y-4">
+      <PagePanel title="Team Formation">
+        <div className="grid gap-3">
+          <SelectField label="Team A Captain" value={resolvedTeamACaptainId} onChange={(event) => setTeamACaptainId(event.target.value)}>
+            <option value="">Select captain</option>
+            {selectablePlayers.map((player) => (
+              <option key={player.id} value={player.id} disabled={player.id === resolvedTeamBCaptainId}>
+                {player.display_name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Team B Captain" value={resolvedTeamBCaptainId} onChange={(event) => setTeamBCaptainId(event.target.value)}>
+            <option value="">Select captain</option>
+            {selectablePlayers.map((player) => (
+              <option key={player.id} value={player.id} disabled={player.id === resolvedTeamACaptainId}>
+                {player.display_name}
+              </option>
+            ))}
+          </SelectField>
+          <Button type="button" variant="secondary" disabled={!resolvedTeamACaptainId || !resolvedTeamBCaptainId} onClick={applyDraft}>
+            Draft Selection
+          </Button>
+        </div>
+      </PagePanel>
+
+      <PagePanel title="Manual Selection">
+        <div className="grid gap-2">
+          {selectablePlayers.map((player) => {
+            const lockedTeam = player.id === resolvedTeamACaptainId ? 'team_a' : player.id === resolvedTeamBCaptainId ? 'team_b' : null;
+            return (
+              <div key={player.id} className="grid grid-cols-[1fr_9rem] items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                <span className="font-medium">{player.display_name}</span>
+                <select
+                  className="min-h-10 rounded-md border border-slate-300 bg-white px-2"
+                  value={lockedTeam ?? teamAssignments[player.id] ?? ''}
+                  disabled={Boolean(lockedTeam)}
+                  onChange={(event) => setPlayerTeam(player.id, event.target.value as TeamSide | '')}
+                >
+                  <option value="">Sit out</option>
+                  <option value="team_a">{match?.team_a_name ?? 'Team A'}</option>
+                  <option value="team_b">{match?.team_b_name ?? 'Team B'}</option>
+                </select>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-4 flex gap-2">
+          <Button type="button" disabled={saveTeams.isPending || setCaptainsMutation.isPending || buildAssignments().length < 2} onClick={() => void save()}>
+            Save Teams
+          </Button>
+          <Button type="button" variant="secondary" onClick={resetTeams}>
+            Clear
+          </Button>
+        </div>
+        <MutationStatus error={saveTeams.error || setCaptainsMutation.error} success={saveTeams.isSuccess ? 'Teams saved.' : null} />
+      </PagePanel>
+    </div>
+  );
+}

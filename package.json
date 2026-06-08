@@ -1,0 +1,35 @@
+{
+  "name": "sunday-strikers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.5.0",
+    "vite": "^5.4.19",
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1",
+    "zustand": "^4.5.7",
+    "@tanstack/react-query": "^5.80.6",
+    "@supabase/supabase-js": "^2.49.8",
+    "tailwindcss": "^3.4.17",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "lucide-react": "^0.468.0",
+    "vite-plugin-pwa": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "jsdom": "^25.0.1"
+  }
+}
