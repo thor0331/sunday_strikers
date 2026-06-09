@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { matchRepository, type MatchInsert, type TeamAssignment, type TossInput } from '../repositories/matchRepository';
+import type { TeamSide } from '../types/models';
 
 export function useMatches() {
   return useQuery({ queryKey: ['matches'], queryFn: matchRepository.list });
@@ -79,6 +80,41 @@ export function useStartSuperOver() {
       void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
       void queryClient.invalidateQueries({ queryKey: ['match-history'] });
       void queryClient.invalidateQueries({ queryKey: ['match', match.parent_match_id] });
+    }
+  });
+}
+
+export function useInnings(matchId: string | null) {
+  return useQuery({
+    queryKey: ['innings', matchId],
+    queryFn: () => matchRepository.getInnings(matchId!),
+    enabled: Boolean(matchId)
+  });
+}
+
+export function useUpdateInnings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ inningsId, input }: { inningsId: string; input: Parameters<typeof matchRepository.updateInnings>[1] }) =>
+      matchRepository.updateInnings(inningsId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['innings'] });
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+    }
+  });
+}
+
+export function useCompleteMatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ matchId, winner, resultText }: { matchId: string; winner: TeamSide | null; resultText: string }) =>
+      matchRepository.completeMatch(matchId, winner, resultText),
+    onSuccess: (match) => {
+      void queryClient.invalidateQueries({ queryKey: ['match', match.id] });
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['match-history'] });
+      void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
     }
   });
 }

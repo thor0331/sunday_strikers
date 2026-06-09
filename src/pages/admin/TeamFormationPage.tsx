@@ -54,7 +54,7 @@ export function TeamFormationPage() {
 
   function buildAssignments(): TeamAssignment[] {
     const orderByTeam: Record<TeamSide, number> = { team_a: 0, team_b: 0 };
-    return selectablePlayers
+    return (selectablePlayers
       .map((player) => {
         const team = player.id === resolvedTeamACaptainId ? 'team_a' : player.id === resolvedTeamBCaptainId ? 'team_b' : teamAssignments[player.id];
         if (team !== 'team_a' && team !== 'team_b') return null;
@@ -66,7 +66,7 @@ export function TeamFormationPage() {
           isCaptain: player.id === resolvedTeamACaptainId || player.id === resolvedTeamBCaptainId
         };
       })
-      .filter((assignment): assignment is TeamAssignment => assignment !== null);
+      .filter((assignment) => assignment !== null) as TeamAssignment[]);
   }
 
   async function save() {

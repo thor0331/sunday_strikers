@@ -145,4 +145,21 @@ describe('scoring engine', () => {
     expect(after.battingStats.p1.runs).toBe(4);
     expect(after.bowlingStats.b1.runsConceded).toBe(5);
   });
+
+  it('handles 2-player side and completes innings on final batsman dismissal', () => {
+    const twoPlayerCtx = {
+      ...ctx,
+      playersPerTeam: 2,
+      battingOrder: ['p1', 'p2']
+    };
+
+    const state = calculateInningsState(twoPlayerCtx, [
+      ball({ sequenceNumber: 1, isWicket: true, wicketType: 'bowled', dismissedPlayerId: 'p1' })
+    ]);
+
+    expect(state.wickets).toBe(1);
+    expect(state.isAllOut).toBe(true);
+    expect(state.isCompleted).toBe(true);
+    expect(state.strikerId).toBeNull();
+  });
 });

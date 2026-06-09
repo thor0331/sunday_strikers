@@ -126,7 +126,7 @@ export const matchRepository = {
   async conductToss(matchId: string, input: TossInput) {
     const match = await this.get(matchId);
     const battingFirst = battingFirstFromToss(input);
-    const bowlingFirst = battingFirst === 'team_a' ? 'team_b' : 'team_a';
+    const bowlingFirst: TeamSide = battingFirst === 'team_a' ? 'team_b' : 'team_a';
 
     const updated = await this.update(matchId, {
       toss_winner: input.tossWinner,
@@ -200,6 +200,33 @@ export const matchRepository = {
         finalWinner: superOver?.winner ?? match.winner,
         finalResultText: superOver?.result_text ?? match.result_text
       };
+    });
+  },
+
+  async getInnings(matchId: string) {
+    const { data, error } = await supabase
+      .from('innings')
+      .select('*')
+      .eq('match_id', matchId)
+      .order('innings_number', { ascending: true });
+    return requireData(data, error);
+  },
+
+  async updateInnings(inningsId: string, input: Database['public']['Tables']['innings']['Update']) {
+    const { data, error } = await supabase
+      .from('innings')
+      .update(input)
+      .eq('id', inningsId)
+      .select()
+      .single();
+    return requireData(data, error);
+  },
+
+  async completeMatch(matchId: string, winner: TeamSide | null, resultText: string) {
+    return this.update(matchId, {
+      status: 'completed',
+      winner,
+      result_text: resultText
     });
   }
 };

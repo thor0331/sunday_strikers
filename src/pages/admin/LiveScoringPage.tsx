@@ -1,22 +1,504 @@
 import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
-import { TextField } from '../../components/forms/Field';
+import { SelectField, TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
-import { useMatch, useStartSuperOver } from '../../hooks/useMatches';
-import { useState, type FormEvent } from 'react';
+import {
+  useMatch,
+  useInnings,
+  useUpdateInnings,
+  useCompleteMatch,
+  useMatchPlayers,
+  useStartSuperOver
+} from '../../hooks/useMatches';
+import { usePlayers } from '../../hooks/usePlayers';
+import { useBallEvents, useCreateBallEvent, useUndoLastBall } from '../../hooks/useBallEvents';
+import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
+import type { BallEvent, TeamSide, ExtraType, WicketType } from '../../types/models';
+import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+
+// Helper to determine batting order dynamically
+export function determineBattingOrder(
+  squadPlayerIds: string[],
+  ballEvents: BallEvent[],
+  openingStrikerId: string,
+  openingNonStrikerId: string,
+  incomingBatsmanId: string | null
+): string[] {
+  const order: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (id: string) => {
+    if (squadPlayerIds.includes(id) && !seen.has(id)) {
+      seen.add(id);
+      order.push(id);
+    }
+  };
+
+  // 1. Add opening batsmen first
+  add(openingStrikerId);
+  add(openingNonStrikerId);
+
+  // 2. Add players who have already appeared in events
+  const sorted = [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  for (const event of sorted) {
+    add(event.strikerId);
+    add(event.nonStrikerId);
+  }
+
+  // 3. Add incoming batsman next if set
+  if (incomingBatsmanId) {
+    add(incomingBatsmanId);
+  }
+
+  // 4. Add remaining squad players who haven't batted yet
+  for (const id of squadPlayerIds) {
+    add(id);
+  }
+
+  return order;
+}
 
 export function LiveScoringPage() {
   const { matchId = '' } = useParams();
   const navigate = useNavigate();
-  const { data: match, isLoading, error } = useMatch(matchId);
-  const startSuperOver = useStartSuperOver();
-  const [superOverName, setSuperOverName] = useState('Super Over');
-  const isCompletedTie = Boolean(match && match.status === 'completed' && match.winner === null && !match.is_super_over);
 
+  // Queries
+  const { data: match, isLoading: matchLoading, error: matchError } = useMatch(matchId);
+  const { data: inningsList = [], isLoading: inningsLoading } = useInnings(matchId);
+  const { data: matchPlayers = [], isLoading: playersLoading } = useMatchPlayers(matchId);
+  const { data: players = [] } = usePlayers();
+
+  // Mutations
+  const updateInnings = useUpdateInnings();
+  const completeMatch = useCompleteMatch();
+  const startSuperOver = useStartSuperOver();
+  const createBallEvent = useCreateBallEvent();
+  const undoLastBall = useUndoLastBall();
+
+  // Innings startup local states
+  const [openingStrikerId, setOpeningStrikerId] = useState('');
+  const [openingNonStrikerId, setOpeningNonStrikerId] = useState('');
+  const [openingBowlerId, setOpeningBowlerId] = useState('');
+
+  // Local state for active bowler & incoming batsman
+  const [currentBowlerId, setCurrentBowlerId] = useState<string | null>(null);
+  const [incomingBatsmanId, setIncomingBatsmanId] = useState<string | null>(null);
+
+  // Forms visibility states
+  const [showWicketForm, setShowWicketForm] = useState(false);
+  const [showExtraForm, setShowExtraForm] = useState(false);
+  const [selectedExtraType, setSelectedExtraType] = useState<ExtraType | null>(null);
+
+  // Wicket Form states
+  const [wicketType, setWicketType] = useState<WicketType>('bowled');
+  const [dismissedPlayerId, setDismissedPlayerId] = useState('');
+  const [fielderId, setFielderId] = useState('');
+  const [wicketRunsBatter, setWicketRunsBatter] = useState('0');
+  const [wicketRunsExtra, setWicketRunsExtra] = useState('0');
+  const [wicketExtraType, setWicketExtraType] = useState<ExtraType | ''>('');
+  const [wicketIsLegal, setWicketIsLegal] = useState(true);
+
+  // Extra Form states
+  const [extraRunsBatter, setExtraRunsBatter] = useState('0');
+  const [extraRunsExtra, setExtraRunsExtra] = useState('1');
+
+  // Super Over name state
+  const [superOverName, setSuperOverName] = useState('Super Over');
+
+  // Maps player ID to display name
+  const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
+
+  // Determine active innings
+  const activeInnings = useMemo(() => {
+    if (inningsList.length === 0) return null;
+    const inn1 = inningsList.find((i) => i.innings_number === 1);
+    const inn2 = inningsList.find((i) => i.innings_number === 2);
+
+    if (inn1 && inn1.status !== 'completed') return inn1;
+    if (inn2 && inn2.status !== 'completed') return inn2;
+    return null; // Both completed or none active
+  }, [inningsList]);
+
+  // Fetch ball events for the active innings
+  const { data: ballEvents = [], isLoading: eventsLoading } = useBallEvents(activeInnings?.id ?? null);
+
+  // Batting and Bowling squads for active innings
+  const squads = useMemo(() => {
+    if (!activeInnings) return { batting: [], bowling: [] };
+    const batting = matchPlayers.filter((mp) => mp.team === activeInnings.batting_team);
+    const bowling = matchPlayers.filter((mp) => mp.team === activeInnings.bowling_team);
+    return { batting, bowling };
+  }, [activeInnings, matchPlayers]);
+
+  const battingSquadIds = useMemo(() => squads.batting.map((mp) => mp.player_id), [squads.batting]);
+  const bowlingSquadIds = useMemo(() => squads.bowling.map((mp) => mp.player_id), [squads.bowling]);
+
+  // Reconstruct opening batsman if events exist
+  const firstEvent = useMemo(() => {
+    if (ballEvents.length === 0) return null;
+    return [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
+  }, [ballEvents]);
+
+  const resolvedOpeningStrikerId = firstEvent?.strikerId || openingStrikerId;
+  const resolvedOpeningNonStrikerId = firstEvent?.nonStrikerId || openingNonStrikerId;
+
+  // Calculate innings state
+  const inningsState = useMemo(() => {
+    if (!activeInnings || !match || !resolvedOpeningStrikerId || !resolvedOpeningNonStrikerId) return null;
+
+    const battingOrder = determineBattingOrder(
+      battingSquadIds,
+      ballEvents,
+      resolvedOpeningStrikerId,
+      resolvedOpeningNonStrikerId,
+      incomingBatsmanId
+    );
+
+    const context: ScoringContext = {
+      inningsId: activeInnings.id,
+      openingStrikerId: resolvedOpeningStrikerId,
+      openingNonStrikerId: resolvedOpeningNonStrikerId,
+      battingOrder,
+      oversPerInnings: match.overs_per_innings,
+      playersPerTeam: match.players_per_team,
+      targetRuns: activeInnings.target_runs
+    };
+
+    try {
+      return calculateInningsState(context, ballEvents);
+    } catch (err) {
+      console.error('Error calculating innings state:', err);
+      return null;
+    }
+  }, [activeInnings, match, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, battingSquadIds, ballEvents, incomingBatsmanId]);
+
+  // Remaining batsmen who haven't batted yet
+  const remainingBatsmen = useMemo(() => {
+    if (!inningsState) return battingSquadIds;
+    const battedIds = Object.keys(inningsState.battingStats);
+    return battingSquadIds.filter((id) => !battedIds.includes(id));
+  }, [inningsState, battingSquadIds]);
+
+  // Set opening bowler from first event bowler, or select state
+  const lastEvent = useMemo(() => {
+    if (ballEvents.length === 0) return null;
+    return [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[ballEvents.length - 1];
+  }, [ballEvents]);
+
+  // Auto-set bowler on load from events
+  useEffect(() => {
+    if (inningsState?.currentBowlerId) {
+      setCurrentBowlerId(inningsState.currentBowlerId);
+    } else if (lastEvent?.bowlerId) {
+      setCurrentBowlerId(lastEvent.bowlerId);
+    } else if (openingBowlerId) {
+      setCurrentBowlerId(openingBowlerId);
+    }
+  }, [inningsState?.currentBowlerId, lastEvent?.bowlerId, openingBowlerId]);
+
+  // Clear incoming batsman once they are in crease and get recorded in next ball event
+  useEffect(() => {
+    if (incomingBatsmanId && inningsState) {
+      const isAtCrease = inningsState.strikerId === incomingBatsmanId || inningsState.nonStrikerId === incomingBatsmanId;
+      // If they are at crease and have been saved in ballEvents, we can clear the client-override state
+      const hasFacedBall = ballEvents.some((be) => be.strikerId === incomingBatsmanId || be.nonStrikerId === incomingBatsmanId);
+      if (isAtCrease && hasFacedBall) {
+        setIncomingBatsmanId(null);
+      }
+    }
+  }, [incomingBatsmanId, inningsState, ballEvents]);
+
+  // Handle over completion (block play at over end, clear local bowler to force selection)
+  const isOverComplete = useMemo(() => {
+    if (!inningsState) return false;
+    return inningsState.legalBalls > 0 && inningsState.legalBalls % 6 === 0;
+  }, [inningsState]);
+
+  // Detect if we need bowler selection (either start of innings or after over complete)
+  const needsBowlerSelection = useMemo(() => {
+    if (!inningsState) return false;
+    if (ballEvents.length === 0) return !currentBowlerId;
+    if (isOverComplete) {
+      // If last ball completed the over, we must select a new bowler (different from last event bowler)
+      // Check if the currentBowlerId in state is same as the bowler of the last ball
+      return !currentBowlerId || currentBowlerId === lastEvent?.bowlerId;
+    }
+    return !currentBowlerId;
+  }, [inningsState, ballEvents, isOverComplete, currentBowlerId, lastEvent]);
+
+  // Start Innings 1 or 2
+  async function handleStartInnings(event: FormEvent) {
+    event.preventDefault();
+    if (!activeInnings || !openingStrikerId || !openingNonStrikerId || !openingBowlerId) return;
+
+    await updateInnings.mutateAsync({
+      inningsId: activeInnings.id,
+      input: {
+        status: 'in_progress',
+        started_at: new Date().toISOString()
+      }
+    });
+
+    setCurrentBowlerId(openingBowlerId);
+  }
+
+  // Log a regular ball
+  async function handleLogBall(runsBatter: 0 | 1 | 2 | 3 | 4 | 6) {
+    if (!activeInnings || !inningsState || !currentBowlerId) return;
+
+    const overNumber = Math.floor(inningsState.legalBalls / 6);
+    const ballInOver = (inningsState.legalBalls % 6) + 1;
+
+    await createBallEvent.mutateAsync({
+      input: {
+        match_id: matchId,
+        innings_id: activeInnings.id,
+        over_number: overNumber,
+        ball_in_over: ballInOver,
+        striker_id: inningsState.strikerId!,
+        non_striker_id: inningsState.nonStrikerId!,
+        bowler_id: currentBowlerId,
+        runs_batter: runsBatter,
+        runs_extra: 0,
+        extra_type: null,
+        is_wicket: false,
+        wicket_type: null,
+        dismissed_player_id: null,
+        fielder_id: null,
+        is_legal_delivery: true
+      },
+      context: {
+        inningsId: activeInnings.id,
+        openingStrikerId: resolvedOpeningStrikerId,
+        openingNonStrikerId: resolvedOpeningNonStrikerId,
+        battingOrder: determineBattingOrder(battingSquadIds, ballEvents, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, incomingBatsmanId),
+        oversPerInnings: match!.overs_per_innings,
+        playersPerTeam: match!.players_per_team,
+        targetRuns: activeInnings.target_runs
+      }
+    });
+  }
+
+  // Log an Extra ball
+  async function handleLogExtra(event: FormEvent) {
+    event.preventDefault();
+    if (!activeInnings || !inningsState || !currentBowlerId || !selectedExtraType) return;
+
+    const overNumber = Math.floor(inningsState.legalBalls / 6);
+    const ballInOver = (inningsState.legalBalls % 6) + 1;
+    const runsB = Number(extraRunsBatter);
+    const runsEx = Number(extraRunsExtra);
+    const isLegal = selectedExtraType === 'bye' || selectedExtraType === 'leg_bye';
+
+    await createBallEvent.mutateAsync({
+      input: {
+        match_id: matchId,
+        innings_id: activeInnings.id,
+        over_number: overNumber,
+        ball_in_over: ballInOver,
+        striker_id: inningsState.strikerId!,
+        non_striker_id: inningsState.nonStrikerId!,
+        bowler_id: currentBowlerId,
+        runs_batter: runsB as any,
+        runs_extra: runsEx,
+        extra_type: selectedExtraType,
+        is_wicket: false,
+        wicket_type: null,
+        dismissed_player_id: null,
+        fielder_id: null,
+        is_legal_delivery: isLegal
+      },
+      context: {
+        inningsId: activeInnings.id,
+        openingStrikerId: resolvedOpeningStrikerId,
+        openingNonStrikerId: resolvedOpeningNonStrikerId,
+        battingOrder: determineBattingOrder(battingSquadIds, ballEvents, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, incomingBatsmanId),
+        oversPerInnings: match!.overs_per_innings,
+        playersPerTeam: match!.players_per_team,
+        targetRuns: activeInnings.target_runs
+      }
+    });
+
+    setShowExtraForm(false);
+    setSelectedExtraType(null);
+    setExtraRunsBatter('0');
+    setExtraRunsExtra('1');
+  }
+
+  // Log a Wicket
+  async function handleLogWicket(event: FormEvent) {
+    event.preventDefault();
+    if (!activeInnings || !inningsState || !currentBowlerId || !dismissedPlayerId) return;
+
+    const overNumber = Math.floor(inningsState.legalBalls / 6);
+    const ballInOver = (inningsState.legalBalls % 6) + 1;
+    const runsB = Number(wicketRunsBatter);
+    const runsEx = Number(wicketRunsExtra);
+    const exType = wicketExtraType || null;
+
+    // Determine incoming batsman next
+    const newWickets = inningsState.wickets + 1;
+    const isAllOut = newWickets >= match!.players_per_team - 1;
+
+    if (!isAllOut && remainingBatsmen.length > 0 && !incomingBatsmanId) {
+      alert('Please select an incoming batsman for the next delivery.');
+      return;
+    }
+
+    await createBallEvent.mutateAsync({
+      input: {
+        match_id: matchId,
+        innings_id: activeInnings.id,
+        over_number: overNumber,
+        ball_in_over: ballInOver,
+        striker_id: inningsState.strikerId!,
+        non_striker_id: inningsState.nonStrikerId!,
+        bowler_id: currentBowlerId,
+        runs_batter: runsB as any,
+        runs_extra: runsEx,
+        extra_type: exType,
+        is_wicket: true,
+        wicket_type: wicketType,
+        dismissed_player_id: dismissedPlayerId,
+        fielder_id: fielderId || null,
+        is_legal_delivery: wicketIsLegal
+      },
+      context: {
+        inningsId: activeInnings.id,
+        openingStrikerId: resolvedOpeningStrikerId,
+        openingNonStrikerId: resolvedOpeningNonStrikerId,
+        battingOrder: determineBattingOrder(battingSquadIds, ballEvents, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, incomingBatsmanId),
+        oversPerInnings: match!.overs_per_innings,
+        playersPerTeam: match!.players_per_team,
+        targetRuns: activeInnings.target_runs
+      }
+    });
+
+    setShowWicketForm(false);
+    setWicketType('bowled');
+    setDismissedPlayerId('');
+    setFielderId('');
+    setWicketRunsBatter('0');
+    setWicketRunsExtra('0');
+    setWicketExtraType('');
+    setWicketIsLegal(true);
+  }
+
+  // Undo Last Delivery
+  async function handleUndo() {
+    if (!activeInnings || ballEvents.length === 0 || !inningsState) return;
+
+    if (window.confirm('Delete the last ball?')) {
+      await undoLastBall.mutateAsync({
+        inningsId: activeInnings.id,
+        context: {
+          inningsId: activeInnings.id,
+          openingStrikerId: resolvedOpeningStrikerId,
+          openingNonStrikerId: resolvedOpeningNonStrikerId,
+          battingOrder: determineBattingOrder(battingSquadIds, ballEvents, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, incomingBatsmanId),
+          oversPerInnings: match!.overs_per_innings,
+          playersPerTeam: match!.players_per_team,
+          targetRuns: activeInnings.target_runs
+        }
+      });
+      // Clear local states that might be stale
+      setIncomingBatsmanId(null);
+    }
+  }
+
+  // Complete Innings 1
+  async function handleCompleteInnings1() {
+    if (!activeInnings || !inningsState || activeInnings.innings_number !== 1) return;
+
+    if (window.confirm('Complete Innings 1 and calculate target?')) {
+      const targetRuns = inningsState.totalRuns + 1;
+
+      // 1. Complete Innings 1 in database
+      await updateInnings.mutateAsync({
+        inningsId: activeInnings.id,
+        input: {
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        }
+      });
+
+      // 2. Find Innings 2 and set its target
+      const innings2 = inningsList.find((i) => i.innings_number === 2);
+      if (innings2) {
+        await updateInnings.mutateAsync({
+          inningsId: innings2.id,
+          input: {
+            target_runs: targetRuns
+          }
+        });
+      }
+
+      // Reset opening batsman choices for Innings 2
+      setOpeningStrikerId('');
+      setOpeningNonStrikerId('');
+      setOpeningBowlerId('');
+      setCurrentBowlerId(null);
+      setIncomingBatsmanId(null);
+    }
+  }
+
+  // Complete Innings 2 and final match results
+  async function handleCompleteInnings2() {
+    const innings2 = activeInnings;
+    if (!innings2 || !inningsState || innings2.innings_number !== 2 || !match) return;
+
+    if (window.confirm('Complete Innings 2 and calculate match result?')) {
+      // 1. Complete Innings 2 in database
+      await updateInnings.mutateAsync({
+        inningsId: innings2.id,
+        input: {
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        }
+      });
+
+      // 2. Fetch Innings 1 score to compare
+      const innings1 = inningsList.find((i) => i.innings_number === 1);
+      const innings1Runs = innings1?.target_runs ? innings1.target_runs - 1 : 0;
+      const innings2Runs = inningsState.totalRuns;
+
+      let winner: TeamSide | null = null;
+      let resultText = '';
+
+      if (innings2Runs >= innings2.target_runs!) {
+        // Innings 2 won (Chasing team)
+        winner = innings2.batting_team;
+        const wicketsLeft = match.players_per_team - 1 - inningsState.wickets;
+        const winnerName = playerMap.get(match.team_a_captain_id!) || 'Team A'; // fallback names
+        const teamName = winner === 'team_a' ? match.team_a_name : match.team_b_name;
+        resultText = `${teamName} won by ${wicketsLeft} wickets`;
+      } else if (innings2Runs < innings1Runs) {
+        // Innings 1 won (Defending team)
+        winner = innings1!.batting_team;
+        const runsMargin = innings1Runs - innings2Runs;
+        const teamName = winner === 'team_a' ? match.team_a_name : match.team_b_name;
+        resultText = `${teamName} won by ${runsMargin} runs`;
+      } else {
+        // TIE
+        winner = null;
+        resultText = 'Match tied';
+      }
+
+      // 3. Update match in database
+      await completeMatch.mutateAsync({
+        matchId: match.id,
+        winner,
+        resultText
+      });
+    }
+  }
+
+  // Super Over child match creation
   async function createSuperOver(event: FormEvent) {
     event.preventDefault();
     if (!match) return;
+
     const superOver = await startSuperOver.mutateAsync({
       parentMatchId: match.id,
       input: {
@@ -33,37 +515,599 @@ export function LiveScoringPage() {
         notes: `Super Over for ${match.match_name}`
       }
     });
+
     navigate(`/admin/matches/${superOver.id}/teams`);
   }
 
-  return (
-    <div className="space-y-4">
-      <PagePanel title="Live Scoring">
-        {isLoading ? <p>Loading match...</p> : null}
-        {error ? <p className="text-red-700">Unable to load match.</p> : null}
-        {match ? (
-          <div className="grid gap-2">
-            <h3 className="font-semibold">{match.match_name}</h3>
-            <p className="text-sm text-slate-600">
+  // Auto-fill wicket dismissed player options
+  useEffect(() => {
+    if (showWicketForm && inningsState) {
+      setDismissedPlayerId(inningsState.strikerId || '');
+    }
+  }, [showWicketForm, inningsState]);
+
+  // Loading states
+  const isLoading = matchLoading || inningsLoading || playersLoading || eventsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-slate-500 font-medium">Loading scoring details...</p>
+      </div>
+    );
+  }
+
+  if (matchError || !match) {
+    return (
+      <div className="p-4 rounded-md bg-red-50 text-red-700">
+        <p className="font-semibold">Error</p>
+        <p className="text-sm">Unable to load match scoring data.</p>
+      </div>
+    );
+  }
+
+  // Render Completed Match state
+  const isMatchCompleted = match.status === 'completed';
+
+  if (isMatchCompleted) {
+    const isTie = match.winner === null && !match.is_super_over;
+    return (
+      <div className="space-y-4 max-w-lg mx-auto">
+        <PagePanel title="Match Completed">
+          <div className="grid gap-3 text-center py-4">
+            <h2 className="text-2xl font-bold text-teal-800">{match.match_name}</h2>
+            <p className="text-sm text-slate-500">
               {match.team_a_name} vs {match.team_b_name}
             </p>
-            <p className="text-sm text-slate-600">
-              {match.overs_per_innings} overs - {match.status}
-            </p>
-            {match.toss_winner ? <p className="text-sm text-slate-600">Toss completed. Batting first: {match.batting_first === 'team_a' ? match.team_a_name : match.team_b_name}</p> : null}
+            <div className="rounded-lg bg-teal-50 border border-teal-100 p-4 mt-2">
+              <p className="text-lg font-bold text-teal-900">{match.result_text || 'Match Completed'}</p>
+            </div>
+            <div className="mt-4">
+              <Button onClick={() => navigate('/admin')}>Return to Dashboard</Button>
+            </div>
           </div>
-        ) : null}
-      </PagePanel>
+        </PagePanel>
 
-      {isCompletedTie ? (
-        <PagePanel title="Super Over">
-          <form className="grid gap-3" onSubmit={createSuperOver}>
-            <TextField label="Super Over Name" value={superOverName} onChange={(event) => setSuperOverName(event.target.value)} required />
-            <Button disabled={startSuperOver.isPending}>Start Super Over</Button>
-            <MutationStatus error={startSuperOver.error} />
+        {isTie ? (
+          <PagePanel title="Super Over Required">
+            <form className="grid gap-3" onSubmit={createSuperOver}>
+              <p className="text-sm text-slate-600">
+                This match ended in a tie. You can start a Super Over to determine the winner.
+              </p>
+              <TextField
+                label="Super Over Name"
+                value={superOverName}
+                onChange={(event) => setSuperOverName(event.target.value)}
+                required
+              />
+              <Button disabled={startSuperOver.isPending}>Start Super Over</Button>
+              <MutationStatus error={startSuperOver.error} />
+            </form>
+          </PagePanel>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Render Toss Required state
+  if (match.status === 'draft' || match.status === 'scheduled' || match.status === 'teams_created') {
+    return (
+      <div className="max-w-lg mx-auto space-y-4">
+        <PagePanel title="Toss Required">
+          <div className="grid gap-3 text-center py-4">
+            <p className="font-medium text-slate-700">You must conduct the toss before scoring can begin.</p>
+            <p className="text-sm text-slate-500">
+              Go to the Toss page to record the toss winner and their batting decision.
+            </p>
+            <div className="mt-4">
+              <Button onClick={() => navigate(`/admin/matches/${matchId}/toss`)}>Go to Toss Page</Button>
+            </div>
+          </div>
+        </PagePanel>
+      </div>
+    );
+  }
+
+  // If no active innings, something went wrong
+  if (!activeInnings) {
+    return (
+      <div className="p-4 rounded-md bg-amber-50 text-amber-700">
+        <p className="font-semibold">Innings Not Found</p>
+        <p className="text-sm">Active innings could not be determined. Please contact admin.</p>
+      </div>
+    );
+  }
+
+  const battingTeamName = activeInnings.batting_team === 'team_a' ? match.team_a_name : match.team_b_name;
+  const bowlingTeamName = activeInnings.bowling_team === 'team_a' ? match.team_a_name : match.team_b_name;
+
+  // 1. INNINGS NOT STARTED STATE
+  if (activeInnings.status === 'not_started') {
+    return (
+      <main className="max-w-md mx-auto space-y-4">
+        <PagePanel title={`Innings ${activeInnings.innings_number} - Setup`}>
+          <div className="mb-4">
+            <h3 className="font-semibold text-slate-800">
+              {battingTeamName} is batting first
+            </h3>
+            <p className="text-xs text-slate-500">
+              Configure the opening batsmen and opening bowler to start scoring.
+            </p>
+            {activeInnings.target_runs ? (
+              <p className="text-sm font-semibold text-teal-800 mt-2">
+                Target: {activeInnings.target_runs} runs
+              </p>
+            ) : null}
+          </div>
+
+          <form className="grid gap-3" onSubmit={handleStartInnings}>
+            <SelectField
+              label="Opening Striker (Batting)"
+              value={openingStrikerId}
+              onChange={(e) => setOpeningStrikerId(e.target.value)}
+              required
+            >
+              <option value="">Select striker</option>
+              {squads.batting.map((mp) => (
+                <option key={mp.player_id} value={mp.player_id} disabled={mp.player_id === openingNonStrikerId}>
+                  {playerMap.get(mp.player_id) ?? 'Player'}
+                </option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label="Opening Non-Striker (Batting)"
+              value={openingNonStrikerId}
+              onChange={(e) => setOpeningNonStrikerId(e.target.value)}
+              required
+            >
+              <option value="">Select non-striker</option>
+              {squads.batting.map((mp) => (
+                <option key={mp.player_id} value={mp.player_id} disabled={mp.player_id === openingStrikerId}>
+                  {playerMap.get(mp.player_id) ?? 'Player'}
+                </option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label="Opening Bowler (Bowling)"
+              value={openingBowlerId}
+              onChange={(e) => setOpeningBowlerId(e.target.value)}
+              required
+            >
+              <option value="">Select bowler</option>
+              {squads.bowling.map((mp) => (
+                <option key={mp.player_id} value={mp.player_id}>
+                  {playerMap.get(mp.player_id) ?? 'Player'}
+                </option>
+              ))}
+            </SelectField>
+
+            <Button disabled={updateInnings.isPending}>Start Innings</Button>
+            <MutationStatus error={updateInnings.error} />
           </form>
         </PagePanel>
+      </main>
+    );
+  }
+
+  // 2. INNINGS IN PROGRESS STATE (scoring console)
+  return (
+    <main className="max-w-md mx-auto space-y-4 pb-10">
+      {/* 2.1 Innings Score Header Card */}
+      <section className="bg-slate-900 text-white rounded-lg p-4 shadow-md">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              {activeInnings.innings_number === 1 ? '1st Innings' : '2nd Innings'} - {battingTeamName}
+            </h2>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-4xl font-extrabold">
+                {inningsState?.totalRuns ?? 0}/{inningsState?.wickets ?? 0}
+              </span>
+              <span className="text-slate-400 text-sm">
+                ({inningsState?.oversDisplay ?? '0.0'} / {match.overs_per_innings} ov)
+              </span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-xs text-teal-400 font-semibold block uppercase">
+              {match.match_name}
+            </span>
+            <span className="text-xs text-slate-400">
+              Vs {bowlingTeamName}
+            </span>
+          </div>
+        </div>
+
+        {/* Target and Chase statistics */}
+        {activeInnings.target_runs ? (
+          <div className="mt-3 pt-3 border-t border-slate-800 grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <p className="text-slate-400">Target</p>
+              <p className="text-sm font-bold text-teal-300">{activeInnings.target_runs}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-400">Required</p>
+              {inningsState?.runsRequired !== null ? (
+                <p className="text-sm font-bold text-teal-300">
+                  Need {inningsState?.runsRequired} runs from {inningsState?.ballsRemaining} balls (RRR: {inningsState?.requiredRunRate ?? '0.00'})
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Run Rates summary */}
+        <div className="mt-2 text-xs text-slate-400 flex gap-4">
+          <span>CRR: <strong>{inningsState?.currentRunRate ?? '0.00'}</strong></span>
+        </div>
+      </section>
+
+      {/* 2.2 Innings Complete Notification Banner */}
+      {inningsState?.isCompleted ? (
+        <section className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center space-y-3">
+          <h3 className="font-bold text-amber-800 text-lg">Innings Complete!</h3>
+          <p className="text-sm text-slate-600">
+            {battingTeamName} scored {inningsState.totalRuns} runs with {inningsState.wickets} wickets down.
+          </p>
+          {activeInnings.innings_number === 1 ? (
+            <Button className="w-full" onClick={handleCompleteInnings1} disabled={updateInnings.isPending}>
+              Proceed to 2nd Innings
+            </Button>
+          ) : (
+            <Button className="w-full" onClick={handleCompleteInnings2} disabled={updateInnings.isPending || completeMatch.isPending}>
+              Complete Match
+            </Button>
+          )}
+          <MutationStatus error={updateInnings.error || completeMatch.error} />
+        </section>
       ) : null}
-    </div>
+
+      {/* 2.3 Batsmen crease stats section */}
+      {!inningsState?.isCompleted && inningsState && (
+        <section className="bg-white border border-slate-200 rounded-lg p-3 space-y-3 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b pb-1">Batting</h3>
+          <div className="divide-y text-sm">
+            {/* Striker batsman display */}
+            <div className={`py-2 grid grid-cols-[1fr_5rem] gap-2 items-center ${inningsState.strikerId ? 'font-semibold' : ''}`}>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-teal-600 font-bold">*</span>
+                <span className="truncate">{inningsState.strikerId ? playerMap.get(inningsState.strikerId) : 'No Striker'}</span>
+                {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId]?.balls === 0 && (
+                  <select
+                    className="text-xs bg-slate-100 border border-slate-300 rounded px-1 max-w-[6rem]"
+                    value={inningsState.strikerId}
+                    onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                  >
+                    <option value={inningsState.strikerId}>Swap batsman</option>
+                    {remainingBatsmen.map((id) => (
+                      <option key={id} value={id}>
+                        {playerMap.get(id)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="text-right text-slate-600">
+                {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId] ? (
+                  <span>
+                    {inningsState.battingStats[inningsState.strikerId].runs} ({inningsState.battingStats[inningsState.strikerId].balls}b)
+                  </span>
+                ) : (
+                  '0 (0b)'
+                )}
+              </div>
+            </div>
+
+            {/* Non-Striker batsman display */}
+            <div className={`py-2 grid grid-cols-[1fr_5rem] gap-2 items-center ${inningsState.nonStrikerId ? 'font-semibold' : ''}`}>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-1.5"></span>
+                <span className="truncate">{inningsState.nonStrikerId ? playerMap.get(inningsState.nonStrikerId) : 'No Non-Striker'}</span>
+                {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId]?.balls === 0 && (
+                  <select
+                    className="text-xs bg-slate-100 border border-slate-300 rounded px-1 max-w-[6rem]"
+                    value={inningsState.nonStrikerId}
+                    onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                  >
+                    <option value={inningsState.nonStrikerId}>Swap batsman</option>
+                    {remainingBatsmen.map((id) => (
+                      <option key={id} value={id}>
+                        {playerMap.get(id)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="text-right text-slate-600">
+                {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId] ? (
+                  <span>
+                    {inningsState.battingStats[inningsState.nonStrikerId].runs} ({inningsState.battingStats[inningsState.nonStrikerId].balls}b)
+                  </span>
+                ) : (
+                  '0 (0b)'
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 2.4 Bowler crease stats section */}
+      {!inningsState?.isCompleted && inningsState && (
+        <section className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b pb-1">Bowling</h3>
+          <div className="flex justify-between items-center text-sm">
+            <div className="font-semibold text-slate-800">
+              {currentBowlerId ? playerMap.get(currentBowlerId) : 'Select Bowler'}
+            </div>
+            <div className="text-slate-600">
+              {currentBowlerId && inningsState.bowlingStats[currentBowlerId] ? (
+                <span>
+                  {inningsState.bowlingStats[currentBowlerId].oversDisplay} ov - {inningsState.bowlingStats[currentBowlerId].wickets} wk - {inningsState.bowlingStats[currentBowlerId].runsConceded} runs
+                </span>
+              ) : (
+                '0.0 ov - 0 wk - 0 runs'
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 2.5 Console Control Action Area */}
+      {!inningsState?.isCompleted && inningsState && (
+        <section className="bg-slate-50 border border-slate-200 rounded-lg p-4 shadow-sm">
+          {/* A. WICKET FORM OVERLAY */}
+          {showWicketForm ? (
+            <form onSubmit={handleLogWicket} className="grid gap-3">
+              <h3 className="font-bold text-red-800 text-sm border-b pb-1">Log Wicket</h3>
+
+              <SelectField
+                label="Dismissal Type"
+                value={wicketType}
+                onChange={(e) => setWicketType(e.target.value as WicketType)}
+                required
+              >
+                <option value="bowled">Bowled</option>
+                <option value="caught">Caught</option>
+                <option value="lbw">LBW</option>
+                <option value="stumped">Stumped</option>
+                <option value="run_out">Run Out</option>
+                <option value="hit_wicket">Hit Wicket</option>
+              </SelectField>
+
+              <SelectField
+                label="Dismissed Batsman"
+                value={dismissedPlayerId}
+                onChange={(e) => setDismissedPlayerId(e.target.value)}
+                required
+              >
+                <option value="">Select dismissed player</option>
+                {inningsState.strikerId ? (
+                  <option value={inningsState.strikerId}>
+                    {playerMap.get(inningsState.strikerId)} (Striker)
+                  </option>
+                ) : null}
+                {inningsState.nonStrikerId ? (
+                  <option value={inningsState.nonStrikerId}>
+                    {playerMap.get(inningsState.nonStrikerId)} (Non-Striker)
+                  </option>
+                ) : null}
+              </SelectField>
+
+              <SelectField
+                label="Fielder (Catches, Stumpings, Run Outs)"
+                value={fielderId}
+                onChange={(e) => setFielderId(e.target.value)}
+              >
+                <option value="">Select fielder (optional)</option>
+                {squads.bowling.map((mp) => (
+                  <option key={mp.player_id} value={mp.player_id}>
+                    {playerMap.get(mp.player_id)}
+                  </option>
+                ))}
+              </SelectField>
+
+              {/* Extra runs run for Run Outs */}
+              {wicketType === 'run_out' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <SelectField
+                    label="Runs Off Bat"
+                    value={wicketRunsBatter}
+                    onChange={(e) => setWicketRunsBatter(e.target.value)}
+                  >
+                    <option value="0">0 runs</option>
+                    <option value="1">1 run</option>
+                    <option value="2">2 runs</option>
+                    <option value="3">3 runs</option>
+                  </SelectField>
+                  <SelectField
+                    label="Extra Type"
+                    value={wicketExtraType}
+                    onChange={(e) => setWicketExtraType(e.target.value as ExtraType | '')}
+                  >
+                    <option value="">Legal ball</option>
+                    <option value="wide">Wide</option>
+                    <option value="no_ball">No Ball</option>
+                    <option value="bye">Bye</option>
+                    <option value="leg_bye">Leg Bye</option>
+                  </SelectField>
+                </div>
+              )}
+
+              {/* Selector for the batsman who enters the crease next */}
+              {inningsState.wickets + 1 < match.players_per_team - 1 && remainingBatsmen.length > 0 ? (
+                <SelectField
+                  label="Incoming Batsman"
+                  value={incomingBatsmanId || ''}
+                  onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                  required
+                >
+                  <option value="">Select incoming batsman</option>
+                  {remainingBatsmen.map((id) => (
+                    <option key={id} value={id}>
+                      {playerMap.get(id)}
+                    </option>
+                  ))}
+                </SelectField>
+              ) : null}
+
+              <div className="flex gap-2 mt-2">
+                <Button type="submit" variant="danger" className="flex-1" disabled={createBallEvent.isPending}>
+                  Save Wicket
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setShowWicketForm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : showExtraForm ? (
+            /* B. EXTRA FORM OVERLAY */
+            <form onSubmit={handleLogExtra} className="grid gap-3">
+              <h3 className="font-bold text-teal-800 text-sm border-b pb-1">
+                Log Extra - {selectedExtraType === 'wide' ? 'Wide' : selectedExtraType === 'no_ball' ? 'No Ball' : selectedExtraType === 'bye' ? 'Bye' : 'Leg Bye'}
+              </h3>
+
+              {/* If No Ball, batsman can score runs off the bat */}
+              {selectedExtraType === 'no_ball' && (
+                <SelectField
+                  label="Runs Off Bat"
+                  value={extraRunsBatter}
+                  onChange={(e) => setExtraRunsBatter(e.target.value)}
+                >
+                  <option value="0">0 runs</option>
+                  <option value="1">1 run</option>
+                  <option value="2">2 runs</option>
+                  <option value="3">3 runs</option>
+                  <option value="4">4 runs</option>
+                  <option value="6">6 runs</option>
+                </SelectField>
+              )}
+
+              {/* Extra runs run or penalty */}
+              <SelectField
+                label={
+                  selectedExtraType === 'wide' || selectedExtraType === 'no_ball'
+                    ? 'Total Extras (1 standard + run-byes)'
+                    : 'Runs Completed (Byes/Leg Byes)'
+                }
+                value={extraRunsExtra}
+                onChange={(e) => setExtraRunsExtra(e.target.value)}
+              >
+                <option value="1">1 run</option>
+                <option value="2">2 runs</option>
+                <option value="3">3 runs</option>
+                <option value="4">4 runs</option>
+                {selectedExtraType === 'wide' && <option value="5">5 runs (4 boundary + 1 wide)</option>}
+              </SelectField>
+
+              <div className="flex gap-2 mt-2">
+                <Button type="submit" className="flex-1" disabled={createBallEvent.isPending}>
+                  Save Extra
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => { setShowExtraForm(false); setSelectedExtraType(null); }}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : needsBowlerSelection ? (
+            /* C. BOWLER CHANGE CARD (blocks other scoring buttons) */
+            <div className="grid gap-3 border border-amber-200 bg-amber-50 rounded-lg p-3 text-center">
+              <h4 className="font-bold text-amber-800 text-sm">
+                {isOverComplete ? 'Over Complete!' : 'Bowler Required'}
+              </h4>
+              <p className="text-xs text-slate-600">
+                {isOverComplete ? 'You must select a new bowler for the next over.' : 'Select the bowler to start scoring.'}
+              </p>
+              <SelectField
+                label="Select Bowler"
+                value={currentBowlerId || ''}
+                onChange={(e) => setCurrentBowlerId(e.target.value)}
+                required
+              >
+                <option value="">Select bowler</option>
+                {squads.bowling.map((mp) => (
+                  <option key={mp.player_id} value={mp.player_id} disabled={mp.player_id === lastEvent?.bowlerId}>
+                    {playerMap.get(mp.player_id) ?? 'Player'} {mp.player_id === lastEvent?.bowlerId ? '(Bowled last over)' : ''}
+                  </option>
+                ))}
+              </SelectField>
+              {/* Click button to acknowledge selection */}
+              <Button type="button" onClick={() => {}} disabled={!currentBowlerId || currentBowlerId === lastEvent?.bowlerId}>
+                Confirm Bowler
+              </Button>
+            </div>
+          ) : (
+            /* D. REGULAR scoring console buttons grid */
+            <div className="space-y-4">
+              {/* Normal Runs Buttons */}
+              <div>
+                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Runs</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {[0, 1, 2, 3, 4, 6].map((runs) => (
+                    <button
+                      key={runs}
+                      type="button"
+                      onClick={() => handleLogBall(runs as any)}
+                      className="min-h-12 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-lg border border-slate-300 rounded shadow-sm flex items-center justify-center transition-colors active:bg-slate-200"
+                      disabled={createBallEvent.isPending}
+                    >
+                      {runs}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Extras buttons panel */}
+              <div>
+                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Extras</h4>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['wide', 'no_ball', 'bye', 'leg_bye'] as ExtraType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setSelectedExtraType(type);
+                        setExtraRunsExtra(type === 'wide' || type === 'no_ball' ? '1' : '1');
+                        setExtraRunsBatter('0');
+                        setShowExtraForm(true);
+                      }}
+                      className="min-h-11 bg-teal-50 hover:bg-teal-100 text-teal-800 text-sm font-bold border border-teal-200 rounded transition-colors active:bg-teal-200 capitalize flex items-center justify-center"
+                      disabled={createBallEvent.isPending}
+                    >
+                      {type === 'no_ball' ? 'No Ball' : type === 'leg_bye' ? 'Leg Bye' : type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action buttons panel */}
+              <div className="grid grid-cols-2 gap-3 border-t pt-3 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowWicketForm(true)}
+                  className="min-h-11 bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow transition-colors active:bg-red-800 flex items-center justify-center"
+                  disabled={createBallEvent.isPending}
+                >
+                  Wicket
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  className="min-h-11 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded shadow transition-colors active:bg-slate-400 flex items-center justify-center"
+                  disabled={undoLastBall.isPending || ballEvents.length === 0}
+                >
+                  Undo Last Ball
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Mutations error display */}
+          <MutationStatus error={createBallEvent.error || undoLastBall.error} />
+        </section>
+      )}
+    </main>
   );
 }
