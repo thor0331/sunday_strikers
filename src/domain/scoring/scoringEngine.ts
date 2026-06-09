@@ -144,7 +144,9 @@ export function calculateInningsState(context: ScoringContext, events: BallEvent
     }
 
     const targetReached = context.targetRuns != null && totalRuns >= context.targetRuns;
-    const allOut = wickets >= context.playersPerTeam - 1;
+
+    const maxWickets = Math.min(context.playersPerTeam, context.battingOrder?.length > 0 ? context.battingOrder.length : context.playersPerTeam) - 1;
+    const allOut = wickets >= maxWickets;
     const oversComplete = legalBalls >= context.oversPerInnings * 6;
     if (targetReached || allOut || oversComplete) break;
   }
@@ -169,7 +171,9 @@ export function calculateInningsState(context: ScoringContext, events: BallEvent
   const runsRequired = targetRuns == null ? null : Math.max(targetRuns - totalRuns, 0);
   const currentRunRate = legalBalls === 0 ? 0 : Number(((totalRuns * 6) / legalBalls).toFixed(2));
   const requiredRunRate = runsRequired == null || ballsRemaining === 0 ? null : Number(((runsRequired * 6) / ballsRemaining).toFixed(2));
-  const isAllOut = wickets >= context.playersPerTeam - 1;
+
+  const maxWickets = Math.min(context.playersPerTeam, context.battingOrder?.length > 0 ? context.battingOrder.length : context.playersPerTeam) - 1;
+  const isAllOut = wickets >= maxWickets;
   const isOversComplete = legalBalls >= maxBalls;
   const isTargetReached = targetRuns != null && totalRuns >= targetRuns;
 

@@ -14,6 +14,7 @@ import { usePlayers } from '../../hooks/usePlayers';
 import { useBallEvents, useCreateBallEvent, useUndoLastBall } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import type { BallEvent, TeamSide, ExtraType, WicketType } from '../../types/models';
+import { supabase } from '../../services/supabaseClient';
 import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -105,6 +106,7 @@ export function LiveScoringPage() {
 
   // Super Over name state
   const [superOverName, setSuperOverName] = useState('Super Over');
+  const [playerOfMatchId, setPlayerOfMatchId] = useState('');
 
   // Maps player ID to display name
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
@@ -133,6 +135,12 @@ export function LiveScoringPage() {
 
   const battingSquadIds = useMemo(() => squads.batting.map((mp) => mp.player_id), [squads.batting]);
   const bowlingSquadIds = useMemo(() => squads.bowling.map((mp) => mp.player_id), [squads.bowling]);
+
+  const maxWickets = useMemo(() => {
+    if (!match) return 0;
+    const squadSize = battingSquadIds.length;
+    return Math.min(match.players_per_team, squadSize > 0 ? squadSize : match.players_per_team) - 1;
+  }, [match, battingSquadIds]);
 
   // Reconstruct opening batsman if events exist
   const firstEvent = useMemo(() => {
@@ -339,8 +347,9 @@ export function LiveScoringPage() {
 
     // Determine incoming batsman next
     const newWickets = inningsState.wickets + 1;
-    const isAllOut = newWickets >= match!.players_per_team - 1;
+    const isAllOut = newWickets >= maxWickets;
 
+    // Only require incoming batsman selection if it's NOT all-out AND there are remaining batsmen
     if (!isAllOut && remainingBatsmen.length > 0 && !incomingBatsmanId) {
       alert('Please select an incoming batsman for the next delivery.');
       return;
@@ -458,38 +467,104 @@ export function LiveScoringPage() {
         }
       });
 
-      // 2. Fetch Innings 1 score to compare
+      // 2. Get the actual Innings 1 score by recalculating from ball events
       const innings1 = inningsList.find((i) => i.innings_number === 1);
-      const innings1Runs = innings1?.target_runs ? innings1.target_runs - 1 : 0;
+      let innings1Runs = 0;
+
+      if (innings1) {
+        // Fetch Innings 1 ball events and recalculate its state
+        try {
+          const inn1Events = await supabase
+            .from('ball_events')
+            .select('*')
+            .eq('innings_id', innings1.id)
+            .order('sequence_number', { ascending: true });
+
+          if (inn1Events.data && inn1Events.data.length > 0) {
+            // Map database rows to BallEvent interface
+            const events = inn1Events.data.map((row) => ({
+              id: row.id,
+              matchId: row.match_id,
+              inningsId: row.innings_id,
+              sequenceNumber: row.sequence_number,
+              overNumber: row.over_number,
+              ballInOver: row.ball_in_over,
+              strikerId: row.striker_id,
+              nonStrikerId: row.non_striker_id,
+              bowlerId: row.bowler_id,
+              runsBatter: row.runs_batter,
+              runsExtra: row.runs_extra,
+              extraType: row.extra_type,
+              isWicket: row.is_wicket,
+              wicketType: row.wicket_type,
+              dismissedPlayerId: row.dismissed_player_id,
+              fielderId: row.fielder_id,
+              isLegalDelivery: row.is_legal_delivery,
+              notes: row.notes,
+              createdBy: row.created_by,
+              createdAt: row.created_at
+            } as BallEvent));
+
+            // Get the first ball to determine opening batsmen for Innings 1
+            const firstEvent = events[0];
+            const inn1BattingSquad = matchPlayers.filter((mp) => mp.team === innings1.batting_team);
+            const inn1BattingOrder = inn1BattingSquad.map((mp) => mp.player_id);
+
+            const inn1Context: ScoringContext = {
+              inningsId: innings1.id,
+              openingStrikerId: firstEvent.strikerId,
+              openingNonStrikerId: firstEvent.nonStrikerId,
+              battingOrder: inn1BattingOrder,
+              oversPerInnings: match.overs_per_innings,
+              playersPerTeam: match.players_per_team,
+              targetRuns: null
+            };
+
+            const inn1State = calculateInningsState(inn1Context, events);
+            innings1Runs = inn1State.totalRuns;
+
+            console.log('[Match Completion] Innings 1 calculated runs:', innings1Runs);
+          }
+        } catch (error) {
+          console.error('[Match Completion] Error fetching Innings 1 data:', error);
+          // Fall back to target_runs - 1 if we can't fetch
+          innings1Runs = innings1.target_runs ? innings1.target_runs - 1 : 0;
+        }
+      }
+
       const innings2Runs = inningsState.totalRuns;
 
       let winner: TeamSide | null = null;
       let resultText = '';
 
+      console.log('[Match Completion] Comparing scores - Innings 1:', innings1Runs, 'Innings 2:', innings2Runs, 'Target:', innings2.target_runs);
+
       if (innings2Runs >= innings2.target_runs!) {
         // Innings 2 won (Chasing team)
         winner = innings2.batting_team;
-        const wicketsLeft = match.players_per_team - 1 - inningsState.wickets;
-        const winnerName = playerMap.get(match.team_a_captain_id!) || 'Team A'; // fallback names
+        const wicketsLeft = maxWickets - inningsState.wickets;
         const teamName = winner === 'team_a' ? match.team_a_name : match.team_b_name;
-        resultText = `${teamName} won by ${wicketsLeft} wickets`;
+        resultText = `${teamName} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
       } else if (innings2Runs < innings1Runs) {
         // Innings 1 won (Defending team)
         winner = innings1!.batting_team;
         const runsMargin = innings1Runs - innings2Runs;
         const teamName = winner === 'team_a' ? match.team_a_name : match.team_b_name;
-        resultText = `${teamName} won by ${runsMargin} runs`;
+        resultText = `${teamName} won by ${runsMargin} run${runsMargin !== 1 ? 's' : ''}`;
       } else {
-        // TIE
+        // TIE - requires Super Over
         winner = null;
         resultText = 'Match tied';
       }
+
+      console.log('[Match Completion] Result:', resultText, 'Winner:', winner);
 
       // 3. Update match in database
       await completeMatch.mutateAsync({
         matchId: match.id,
         winner,
-        resultText
+        resultText,
+        playerOfMatchId: playerOfMatchId || null
       });
     }
   }
@@ -756,6 +831,25 @@ export function LiveScoringPage() {
               Proceed to 2nd Innings
             </Button>
           ) : (
+            <div className="space-y-2 mb-3">
+            <label className="block text-sm font-medium">
+    Player of the Match
+  </label>
+
+  <select
+    className="w-full rounded border px-3 py-2"
+    value={playerOfMatchId}
+    onChange={(e) => setPlayerOfMatchId(e.target.value)}
+  >
+    <option value="">Select Player</option>
+
+    {matchPlayers.map((player) => (
+  <option key={player.player_id} value={player.player_id}>
+    {playerMap.get(player.player_id) ?? player.player_id}
+  </option>
+))}
+  </select>
+</div>>
             <Button className="w-full" onClick={handleCompleteInnings2} disabled={updateInnings.isPending || completeMatch.isPending}>
               Complete Match
             </Button>
@@ -764,92 +858,182 @@ export function LiveScoringPage() {
         </section>
       ) : null}
 
-      {/* 2.3 Batsmen crease stats section */}
+      {/* 2.3 Batsmen crease stats section - ENHANCED */}
       {!inningsState?.isCompleted && inningsState && (
-        <section className="bg-white border border-slate-200 rounded-lg p-3 space-y-3 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 border-b pb-1">Batting</h3>
-          <div className="divide-y text-sm">
-            {/* Striker batsman display */}
-            <div className={`py-2 grid grid-cols-[1fr_5rem] gap-2 items-center ${inningsState.strikerId ? 'font-semibold' : ''}`}>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-teal-600 font-bold">*</span>
-                <span className="truncate">{inningsState.strikerId ? playerMap.get(inningsState.strikerId) : 'No Striker'}</span>
-                {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId]?.balls === 0 && (
-                  <select
-                    className="text-xs bg-slate-100 border border-slate-300 rounded px-1 max-w-[6rem]"
-                    value={inningsState.strikerId}
-                    onChange={(e) => setIncomingBatsmanId(e.target.value)}
-                  >
-                    <option value={inningsState.strikerId}>Swap batsman</option>
-                    {remainingBatsmen.map((id) => (
-                      <option key={id} value={id}>
-                        {playerMap.get(id)}
-                      </option>
-                    ))}
-                  </select>
-                )}
+        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b pb-2">Batting</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Striker batsman - detailed display */}
+            <div className="rounded-lg bg-teal-50 border border-teal-100 p-3">
+              <div className="flex items-start gap-2 mb-3">
+                <span className="text-teal-600 font-bold text-lg">*</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {inningsState.strikerId ? playerMap.get(inningsState.strikerId) : 'No Striker'}
+                  </p>
+                  {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId]?.balls === 0 && (
+                    <select
+                      className="text-xs bg-white border border-slate-300 rounded px-1 mt-1 w-full"
+                      value={inningsState.strikerId}
+                      onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                    >
+                      <option value={inningsState.strikerId}>Swap batsman</option>
+                      {remainingBatsmen.map((id) => (
+                        <option key={id} value={id}>
+                          {playerMap.get(id)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
-              <div className="text-right text-slate-600">
-                {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId] ? (
-                  <span>
-                    {inningsState.battingStats[inningsState.strikerId].runs} ({inningsState.battingStats[inningsState.strikerId].balls}b)
-                  </span>
-                ) : (
-                  '0 (0b)'
-                )}
-              </div>
+              {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId] ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-slate-500">Runs</p>
+                    <p className="text-lg font-bold text-teal-600">{inningsState.battingStats[inningsState.strikerId].runs}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Balls</p>
+                    <p className="text-lg font-bold text-teal-600">{inningsState.battingStats[inningsState.strikerId].balls}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">4s</p>
+                    <p className="font-bold text-teal-600">{inningsState.battingStats[inningsState.strikerId].fours}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">6s</p>
+                    <p className="font-bold text-teal-600">{inningsState.battingStats[inningsState.strikerId].sixes}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-slate-500">SR</p>
+                    <p className="font-bold text-teal-600">{inningsState.battingStats[inningsState.strikerId].strikeRate.toFixed(2)}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">0 (0b) | SR: 0.00</p>
+              )}
             </div>
 
-            {/* Non-Striker batsman display */}
-            <div className={`py-2 grid grid-cols-[1fr_5rem] gap-2 items-center ${inningsState.nonStrikerId ? 'font-semibold' : ''}`}>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="w-1.5"></span>
-                <span className="truncate">{inningsState.nonStrikerId ? playerMap.get(inningsState.nonStrikerId) : 'No Non-Striker'}</span>
-                {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId]?.balls === 0 && (
-                  <select
-                    className="text-xs bg-slate-100 border border-slate-300 rounded px-1 max-w-[6rem]"
-                    value={inningsState.nonStrikerId}
-                    onChange={(e) => setIncomingBatsmanId(e.target.value)}
-                  >
-                    <option value={inningsState.nonStrikerId}>Swap batsman</option>
-                    {remainingBatsmen.map((id) => (
-                      <option key={id} value={id}>
-                        {playerMap.get(id)}
-                      </option>
-                    ))}
-                  </select>
-                )}
+            {/* Non-Striker batsman - detailed display */}
+            <div className="rounded-lg bg-slate-100 border border-slate-200 p-3">
+              <div className="flex items-start gap-2 mb-3">
+                <span className="w-2"></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {inningsState.nonStrikerId ? playerMap.get(inningsState.nonStrikerId) : 'No Non-Striker'}
+                  </p>
+                  {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId]?.balls === 0 && (
+                    <select
+                      className="text-xs bg-white border border-slate-300 rounded px-1 mt-1 w-full"
+                      value={inningsState.nonStrikerId}
+                      onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                    >
+                      <option value={inningsState.nonStrikerId}>Swap batsman</option>
+                      {remainingBatsmen.map((id) => (
+                        <option key={id} value={id}>
+                          {playerMap.get(id)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
-              <div className="text-right text-slate-600">
-                {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId] ? (
-                  <span>
-                    {inningsState.battingStats[inningsState.nonStrikerId].runs} ({inningsState.battingStats[inningsState.nonStrikerId].balls}b)
-                  </span>
-                ) : (
-                  '0 (0b)'
-                )}
-              </div>
+              {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId] ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-slate-500">Runs</p>
+                    <p className="text-lg font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].runs}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Balls</p>
+                    <p className="text-lg font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].balls}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">4s</p>
+                    <p className="font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].fours}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">6s</p>
+                    <p className="font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].sixes}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-slate-500">SR</p>
+                    <p className="font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].strikeRate.toFixed(2)}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">0 (0b) | SR: 0.00</p>
+              )}
             </div>
           </div>
         </section>
       )}
 
-      {/* 2.4 Bowler crease stats section */}
+      {/* 2.4 Bowler crease stats section - ENHANCED */}
       {!inningsState?.isCompleted && inningsState && (
-        <section className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 border-b pb-1">Bowling</h3>
-          <div className="flex justify-between items-center text-sm">
-            <div className="font-semibold text-slate-800">
-              {currentBowlerId ? playerMap.get(currentBowlerId) : 'Select Bowler'}
+        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b pb-2">Bowling</h3>
+          {currentBowlerId && inningsState.bowlingStats[currentBowlerId] ? (
+            <div className="rounded-lg bg-red-50 border border-red-100 p-3">
+              <p className="text-sm font-semibold text-slate-800 mb-3">
+                {playerMap.get(currentBowlerId)}
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <p className="text-slate-500">Overs</p>
+                  <p className="text-lg font-bold text-red-600">{inningsState.bowlingStats[currentBowlerId].oversDisplay}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Maidens</p>
+                  <p className="text-lg font-bold text-red-600">{inningsState.bowlingStats[currentBowlerId].maidens}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Runs</p>
+                  <p className="text-lg font-bold text-red-600">{inningsState.bowlingStats[currentBowlerId].runsConceded}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Wickets</p>
+                  <p className="text-lg font-bold text-red-600">{inningsState.bowlingStats[currentBowlerId].wickets}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-slate-500">Economy</p>
+                  <p className="text-lg font-bold text-red-600">{inningsState.bowlingStats[currentBowlerId].economy.toFixed(2)}</p>
+                </div>
+              </div>
             </div>
-            <div className="text-slate-600">
-              {currentBowlerId && inningsState.bowlingStats[currentBowlerId] ? (
-                <span>
-                  {inningsState.bowlingStats[currentBowlerId].oversDisplay} ov - {inningsState.bowlingStats[currentBowlerId].wickets} wk - {inningsState.bowlingStats[currentBowlerId].runsConceded} runs
-                </span>
-              ) : (
-                '0.0 ov - 0 wk - 0 runs'
-              )}
+          ) : (
+            <div className="rounded-lg bg-slate-100 border border-slate-200 p-3 text-center">
+              <p className="text-sm text-slate-600 font-semibold">Select Bowler</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 2.4b Match Statistics Panel */}
+      {!inningsState?.isCompleted && inningsState && activeInnings?.target_runs && (
+        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b pb-2">Chase Stats</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded bg-amber-50 border border-amber-100 p-2">
+              <p className="text-xs text-slate-600">Target</p>
+              <p className="text-lg font-bold text-amber-600">{activeInnings.target_runs}</p>
+            </div>
+            <div className="rounded bg-emerald-50 border border-emerald-100 p-2">
+              <p className="text-xs text-slate-600">Runs Required</p>
+              <p className="text-lg font-bold text-emerald-600">{inningsState.runsRequired ?? '-'}</p>
+            </div>
+            <div className="rounded bg-sky-50 border border-sky-100 p-2">
+              <p className="text-xs text-slate-600">Balls Remaining</p>
+              <p className="text-lg font-bold text-sky-600">{inningsState.ballsRemaining ?? '-'}</p>
+            </div>
+            <div className="rounded bg-teal-50 border border-teal-100 p-2">
+              <p className="text-xs text-slate-600">RRR</p>
+              <p className="text-lg font-bold text-teal-600">{inningsState.requiredRunRate?.toFixed(2) ?? '-'}</p>
+            </div>
+            <div className="rounded bg-purple-50 border border-purple-100 p-2 col-span-2">
+              <p className="text-xs text-slate-600">Current Run Rate</p>
+              <p className="text-lg font-bold text-purple-600">{inningsState.currentRunRate.toFixed(2)}</p>
             </div>
           </div>
         </section>
@@ -937,7 +1121,7 @@ export function LiveScoringPage() {
               )}
 
               {/* Selector for the batsman who enters the crease next */}
-              {inningsState.wickets + 1 < match.players_per_team - 1 && remainingBatsmen.length > 0 ? (
+              {inningsState.wickets + 1 < maxWickets && remainingBatsmen.length > 0 ? (
                 <SelectField
                   label="Incoming Batsman"
                   value={incomingBatsmanId || ''}

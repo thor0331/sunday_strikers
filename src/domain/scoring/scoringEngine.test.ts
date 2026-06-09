@@ -162,4 +162,70 @@ describe('scoring engine', () => {
     expect(state.isCompleted).toBe(true);
     expect(state.strikerId).toBeNull();
   });
+
+  it('completes innings when squad size is less than playersPerTeam and final wicket falls', () => {
+    const customCtx = {
+      ...ctx,
+      playersPerTeam: 6,
+      battingOrder: ['p1', 'p2', 'p3', 'p4', 'p5']
+    };
+
+    const state = calculateInningsState(customCtx, [
+      ball({ sequenceNumber: 1, isWicket: true, dismissedPlayerId: 'p1' }),
+      ball({ sequenceNumber: 2, isWicket: true, dismissedPlayerId: 'p3' }),
+      ball({ sequenceNumber: 3, isWicket: true, dismissedPlayerId: 'p4' }),
+      ball({ sequenceNumber: 4, isWicket: true, dismissedPlayerId: 'p2' })
+    ]);
+
+    expect(state.wickets).toBe(4);
+    expect(state.isAllOut).toBe(true);
+    expect(state.isCompleted).toBe(true);
+  });
+
+  it('handles final wicket when all remaining batsmen are dismissed with no batsmen left', () => {
+    const twoPlayerCtx = {
+      ...ctx,
+      playersPerTeam: 2,
+      battingOrder: ['p1', 'p2']
+    };
+
+    // First wicket dismisses p1 at strike (p2 becomes striker), second dismisses p2 (all-out)
+    // After p1 is out, p2 is at strike and there's no one left, so next wicket will be all-out
+    const state = calculateInningsState(twoPlayerCtx, [
+      ball({ sequenceNumber: 1, strikerId: 'p1', nonStrikerId: 'p2', isWicket: true, wicketType: 'bowled', dismissedPlayerId: 'p1' })
+    ]);
+
+    expect(state.wickets).toBe(1);
+    expect(state.isAllOut).toBe(true);
+    expect(state.isCompleted).toBe(true);
+    expect(state.strikerId).toBeNull(); // No more batters available at striker position
+  });
+
+  it('tracks batter dismissal correctly for final wicket in larger squad', () => {
+    const customCtx = {
+      ...ctx,
+      playersPerTeam: 6,
+      battingOrder: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
+    };
+
+    // Build up to final wicket scenario
+    const events = [
+      ball({ sequenceNumber: 1, isWicket: true, dismissedPlayerId: 'p1' }),
+      ball({ sequenceNumber: 2, strikerId: 'p3', nonStrikerId: 'p2', isWicket: true, dismissedPlayerId: 'p2' }),
+      ball({ sequenceNumber: 3, strikerId: 'p4', nonStrikerId: 'p3', isWicket: true, dismissedPlayerId: 'p3' }),
+      ball({ sequenceNumber: 4, strikerId: 'p5', nonStrikerId: 'p4', isWicket: true, dismissedPlayerId: 'p4' }),
+      ball({ sequenceNumber: 5, strikerId: 'p6', nonStrikerId: 'p5', isWicket: true, dismissedPlayerId: 'p5' })
+    ];
+
+    const state = calculateInningsState(customCtx, events);
+
+    expect(state.wickets).toBe(5);
+    expect(state.isAllOut).toBe(true);
+    expect(state.isCompleted).toBe(true);
+    expect(Object.keys(state.battingStats).length).toBe(6); // All 6 batters tracked
+    for (let i = 1; i <= 5; i++) {
+      expect(state.battingStats[`p${i}`].isOut).toBe(true);
+    }
+    expect(state.battingStats.p6.isOut).toBe(false); // Last batter not out
+  });
 });

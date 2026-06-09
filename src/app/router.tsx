@@ -4,6 +4,7 @@ import { ProtectedRoute } from '../components/layout/ProtectedRoute';
 import { PublicLayout } from '../components/layout/PublicLayout';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { AdminLoginPage } from '../pages/admin/AdminLoginPage';
+import { AdminMatchDetailsPage } from '../pages/admin/AdminMatchDetailsPage';
 import { LiveScoringPage } from '../pages/admin/LiveScoringPage';
 import { MatchCreationPage } from '../pages/admin/MatchCreationPage';
 import { PlayerManagementPage } from '../pages/admin/PlayerManagementPage';
@@ -43,9 +44,11 @@ export const router = createBrowserRouter([
           { path: 'players', element: <PlayerManagementPage /> },
           { path: 'seasons', element: <SeasonManagementPage /> },
           { path: 'matches/new', element: <MatchCreationPage /> },
+          { path: 'matches/:matchId/edit', element: <MatchCreationPage /> },
           { path: 'matches/:matchId/teams', element: <TeamFormationPage /> },
           { path: 'matches/:matchId/toss', element: <TossPage /> },
-          { path: 'matches/:matchId/scoring', element: <LiveScoringPage /> }
+          { path: 'matches/:matchId/scoring', element: <LiveScoringPage /> },
+          { path: 'matches/:matchId/details', element: <AdminMatchDetailsPage /> }
         ]
       }
     ]

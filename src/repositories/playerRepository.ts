@@ -1,6 +1,6 @@
 import { supabase } from '../services/supabaseClient';
 import type { Database } from '../types/database';
-import { requireData } from './supabaseErrors';
+import { requireData, parseSupabaseError } from './supabaseErrors';
 
 export type PlayerInsert = Database['public']['Tables']['players']['Insert'];
 export type PlayerUpdate = Database['public']['Tables']['players']['Update'];
@@ -27,7 +27,7 @@ export const playerRepository = {
 
   async remove(id: string) {
     const { error } = await supabase.from('players').delete().eq('id', id);
-    if (error) throw error;
+    if (error) throw parseSupabaseError(error);
   },
 
   async uploadPhoto(playerId: string, file: File) {
@@ -35,7 +35,7 @@ export const playerRepository = {
     const extension = file.name.split('.').pop()?.toLowerCase() || 'webp';
     const path = `${playerId}/profile.${extension}`;
     const { error } = await supabase.storage.from('player-photos').upload(path, file, { cacheControl: '3600', upsert: true });
-    if (error) throw error;
+    if (error) throw parseSupabaseError(error);
 
     const { data } = supabase.storage.from('player-photos').getPublicUrl(path);
     return this.update(playerId, { photo_url: data.publicUrl });

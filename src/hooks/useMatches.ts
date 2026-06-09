@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { matchRepository, type MatchInsert, type TeamAssignment, type TossInput } from '../repositories/matchRepository';
+import { matchRepository, type MatchInsert, type MatchUpdate, type TeamAssignment, type TossInput } from '../repositories/matchRepository';
 import type { TeamSide } from '../types/models';
 
 export function useMatches() {
@@ -11,7 +11,10 @@ export function useParentMatches() {
 }
 
 export function useMatchHistory() {
-  return useQuery({ queryKey: ['match-history'], queryFn: matchRepository.history });
+  return useQuery({
+    queryKey: ['match-history'],
+    queryFn: () => matchRepository.history()
+  });
 }
 
 export function useMatch(matchId: string | null) {
@@ -107,14 +110,68 @@ export function useUpdateInnings() {
 export function useCompleteMatch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ matchId, winner, resultText }: { matchId: string; winner: TeamSide | null; resultText: string }) =>
-      matchRepository.completeMatch(matchId, winner, resultText),
+    mutationFn: ({
+  matchId,
+  winner,
+  resultText,
+  playerOfMatchId
+}: {
+  matchId: string;
+  winner: TeamSide | null;
+  resultText: string;
+  playerOfMatchId?: string | null;
+}) =>
+  matchRepository.completeMatch(
+    matchId,
+    winner,
+    resultText,
+    playerOfMatchId
+  ),
     onSuccess: (match) => {
       void queryClient.invalidateQueries({ queryKey: ['match', match.id] });
       void queryClient.invalidateQueries({ queryKey: ['matches'] });
       void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
       void queryClient.invalidateQueries({ queryKey: ['match-history'] });
       void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
+    }
+  });
+}
+
+export function useUpdateMatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ matchId, input }: { matchId: string; input: MatchUpdate }) => matchRepository.update(matchId, input),
+    onSuccess: (match) => {
+      void queryClient.invalidateQueries({ queryKey: ['match', match.id] });
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['match-history'] });
+    }
+  });
+}
+
+export function useDeleteMatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (matchId: string) => matchRepository.delete(matchId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['match-history'] });
+    }
+  });
+}
+
+export function useResetMatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (matchId: string) => matchRepository.reset(matchId),
+    onSuccess: (match) => {
+      void queryClient.invalidateQueries({ queryKey: ['match', match.id] });
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['innings', match.id] });
+      void queryClient.invalidateQueries({ queryKey: ['ball-events', match.id] });
+      void queryClient.invalidateQueries({ queryKey: ['match-history'] });
     }
   });
 }

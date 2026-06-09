@@ -2,14 +2,18 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
 import { TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
-import { useCreateSeason, useSeasons, useSetActiveSeason, useUpdateSeason } from '../../hooks/useSeasons';
+import { useCreateSeason, useSeasons, useSetActiveSeason, useUpdateSeason, useDeleteSeason } from '../../hooks/useSeasons';
+import { useParentMatches } from '../../hooks/useMatches';
 import { useState, type FormEvent } from 'react';
 
 export function SeasonManagementPage() {
   const { data: seasons = [], isLoading } = useSeasons();
+  const { data: matches = [] } = useParentMatches();
   const createSeason = useCreateSeason();
   const updateSeason = useUpdateSeason();
   const setActiveSeason = useSetActiveSeason();
+  const deleteSeason = useDeleteSeason();
+
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -27,6 +31,18 @@ export function SeasonManagementPage() {
     setName('');
     setStartDate('');
     setEndDate('');
+  }
+
+  async function handleDeleteSeason(seasonId: string, seasonName: string) {
+    const hasMatches = matches.some((match) => match.season_id === seasonId);
+    if (hasMatches) {
+      alert(`Cannot delete season "${seasonName}" because matches exist in it.`);
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete season "${seasonName}"?`)) {
+      await deleteSeason.mutateAsync(seasonId);
+    }
   }
 
   return (
@@ -59,7 +75,7 @@ export function SeasonManagementPage() {
                   <p className="text-sm text-slate-500">
                     {season.start_date} {season.end_date ? `to ${season.end_date}` : ''}
                   </p>
-                  {season.is_active ? <p className="mt-1 text-sm font-semibold text-field">Active season</p> : null}
+                  {season.is_active ? <p className="mt-1 text-sm font-semibold text-teal-600">Active season</p> : null}
                 </div>
                 <div className="grid gap-2">
                   <Button
@@ -77,12 +93,23 @@ export function SeasonManagementPage() {
                   <Button type="button" disabled={season.is_active} onClick={() => void setActiveSeason.mutateAsync(season.id)}>
                     Set Active
                   </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    disabled={season.is_active || deleteSeason.isPending}
+                    onClick={() => handleDeleteSeason(season.id, season.name)}
+                  >
+                    Delete
+                  </Button>
                 </div>
               </div>
             </article>
           ))}
         </div>
-        <MutationStatus error={setActiveSeason.error} success={setActiveSeason.isSuccess ? 'Active season updated.' : null} />
+        <MutationStatus
+          error={setActiveSeason.error || deleteSeason.error}
+          success={setActiveSeason.isSuccess ? 'Active season updated.' : deleteSeason.isSuccess ? 'Season deleted successfully.' : null}
+        />
       </PagePanel>
     </div>
   );

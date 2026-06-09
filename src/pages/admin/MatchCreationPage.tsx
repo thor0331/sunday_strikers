@@ -2,19 +2,25 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
 import { SelectField, TextAreaField, TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
-import { useCreateMatch } from '../../hooks/useMatches';
+import { useCreateMatch, useMatch, useUpdateMatch } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
-import { useNavigate } from 'react-router-dom';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMemo, useState, type FormEvent, useEffect } from 'react';
 
 export function MatchCreationPage() {
   const navigate = useNavigate();
+  const { matchId } = useParams();
   const { data: seasons = [] } = useSeasons();
   const { data: players = [] } = usePlayers();
   const createMatch = useCreateMatch();
+  const updateMatch = useUpdateMatch();
+
+  const { data: match, isLoading: matchLoading } = useMatch(matchId ?? null);
+
   const activeSeason = seasons.find((season) => season.is_active);
   const activePlayers = useMemo(() => players.filter((player) => player.status === 'active'), [players]);
+
   const [matchName, setMatchName] = useState('');
   const [matchDate, setMatchDate] = useState('');
   const [matchNumber, setMatchNumber] = useState('1');
@@ -27,10 +33,30 @@ export function MatchCreationPage() {
   const [teamBCaptainId, setTeamBCaptainId] = useState('');
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (match) {
+      setMatchName(match.match_name || '');
+      setMatchDate(match.match_date || '');
+      setMatchNumber(match.match_number ? String(match.match_number) : '');
+      setVenue(match.venue || '');
+      setOvers(match.overs_per_innings ? String(match.overs_per_innings) : '6');
+      setPlayersPerTeam(match.players_per_team ? String(match.players_per_team) : '6');
+      setTeamAName(match.team_a_name || 'Team A');
+      setTeamBName(match.team_b_name || 'Team B');
+      setTeamACaptainId(match.team_a_captain_id || '');
+      setTeamBCaptainId(match.team_b_captain_id || '');
+      setNotes(match.notes || '');
+    }
+  }, [match]);
+
+  const isStarted = match ? !['draft', 'scheduled', 'teams_created'].includes(match.status) : false;
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const match = await createMatch.mutateAsync({
-      season_id: activeSeason?.id ?? null,
+    if (isStarted) return;
+
+    const payload = {
+      season_id: match ? match.season_id : (activeSeason?.id ?? null),
       match_name: matchName.trim(),
       match_date: matchDate,
       match_number: matchNumber ? Number(matchNumber) : null,
@@ -42,27 +68,105 @@ export function MatchCreationPage() {
       team_a_captain_id: teamACaptainId || null,
       team_b_captain_id: teamBCaptainId || null,
       notes: notes.trim() || null,
-      status: teamACaptainId && teamBCaptainId ? 'scheduled' : 'draft'
-    });
-    navigate(`/admin/matches/${match.id}/teams`);
+      status: match ? match.status : (teamACaptainId && teamBCaptainId ? 'scheduled' : 'draft')
+    };
+
+    if (matchId) {
+      await updateMatch.mutateAsync({ matchId, input: payload });
+      navigate('/admin');
+    } else {
+      const created = await createMatch.mutateAsync(payload);
+      navigate(`/admin/matches/${created.id}/teams`);
+    }
+  }
+
+  if (matchId && matchLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-slate-500 font-medium">Loading match details...</p>
+      </div>
+    );
   }
 
   return (
-    <PagePanel title="Create Match">
+    <PagePanel title={matchId ? 'Edit Match' : 'Create Match'}>
       <form className="grid gap-3" onSubmit={submit}>
-        <TextField label="Match Name" value={matchName} onChange={(event) => setMatchName(event.target.value)} placeholder="Match 1, Sunday Final, Revenge Match" required />
-        <TextField label="Match Date" type="date" value={matchDate} onChange={(event) => setMatchDate(event.target.value)} required />
-        <TextField label="Match Number" type="number" min="1" value={matchNumber} onChange={(event) => setMatchNumber(event.target.value)} />
-        <TextField label="Venue" value={venue} onChange={(event) => setVenue(event.target.value)} />
+        {isStarted && (
+          <div className="p-3 bg-amber-50 text-amber-800 rounded border border-amber-200 text-sm font-semibold">
+            Editing is disabled because this match has already started or completed.
+          </div>
+        )}
+
+        <TextField
+          label="Match Name"
+          value={matchName}
+          onChange={(event) => setMatchName(event.target.value)}
+          placeholder="Match 1, Sunday Final, Revenge Match"
+          required
+          disabled={isStarted}
+        />
+        <TextField
+          label="Match Date"
+          type="date"
+          value={matchDate}
+          onChange={(event) => setMatchDate(event.target.value)}
+          required
+          disabled={isStarted}
+        />
+        <TextField
+          label="Match Number"
+          type="number"
+          min="1"
+          value={matchNumber}
+          onChange={(event) => setMatchNumber(event.target.value)}
+          disabled={isStarted}
+        />
+        <TextField
+          label="Venue"
+          value={venue}
+          onChange={(event) => setVenue(event.target.value)}
+          disabled={isStarted}
+        />
         <div className="grid grid-cols-2 gap-3">
-          <TextField label="Overs" type="number" min="1" value={overs} onChange={(event) => setOvers(event.target.value)} required />
-          <TextField label="Players Per Team" type="number" min="1" value={playersPerTeam} onChange={(event) => setPlayersPerTeam(event.target.value)} required />
+          <TextField
+            label="Overs"
+            type="number"
+            min="1"
+            value={overs}
+            onChange={(event) => setOvers(event.target.value)}
+            required
+            disabled={isStarted}
+          />
+          <TextField
+            label="Players Per Team"
+            type="number"
+            min="1"
+            value={playersPerTeam}
+            onChange={(event) => setPlayersPerTeam(event.target.value)}
+            required
+            disabled={isStarted}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <TextField label="Team A Name" value={teamAName} onChange={(event) => setTeamAName(event.target.value)} />
-          <TextField label="Team B Name" value={teamBName} onChange={(event) => setTeamBName(event.target.value)} />
+          <TextField
+            label="Team A Name"
+            value={teamAName}
+            onChange={(event) => setTeamAName(event.target.value)}
+            disabled={isStarted}
+          />
+          <TextField
+            label="Team B Name"
+            value={teamBName}
+            onChange={(event) => setTeamBName(event.target.value)}
+            disabled={isStarted}
+          />
         </div>
-        <SelectField label="Team A Captain" value={teamACaptainId} onChange={(event) => setTeamACaptainId(event.target.value)}>
+        <SelectField
+          label="Team A Captain"
+          value={teamACaptainId}
+          onChange={(event) => setTeamACaptainId(event.target.value)}
+          disabled={isStarted}
+        >
           <option value="">Select captain</option>
           {activePlayers.map((player) => (
             <option key={player.id} value={player.id} disabled={player.id === teamBCaptainId}>
@@ -70,7 +174,12 @@ export function MatchCreationPage() {
             </option>
           ))}
         </SelectField>
-        <SelectField label="Team B Captain" value={teamBCaptainId} onChange={(event) => setTeamBCaptainId(event.target.value)}>
+        <SelectField
+          label="Team B Captain"
+          value={teamBCaptainId}
+          onChange={(event) => setTeamBCaptainId(event.target.value)}
+          disabled={isStarted}
+        >
           <option value="">Select captain</option>
           {activePlayers.map((player) => (
             <option key={player.id} value={player.id} disabled={player.id === teamACaptainId}>
@@ -78,9 +187,28 @@ export function MatchCreationPage() {
             </option>
           ))}
         </SelectField>
-        <TextAreaField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
-        <Button disabled={createMatch.isPending}>Create Match</Button>
-        <MutationStatus error={createMatch.error} />
+        <TextAreaField
+          label="Notes"
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          disabled={isStarted}
+        />
+
+        <div className="flex gap-2">
+          <Button disabled={createMatch.isPending || updateMatch.isPending || isStarted}>
+            {matchId ? 'Save Match' : 'Create Match'}
+          </Button>
+          {matchId && (
+            <Button type="button" variant="secondary" onClick={() => navigate('/admin')}>
+              Cancel
+            </Button>
+          )}
+        </div>
+
+        <MutationStatus
+          error={createMatch.error || updateMatch.error}
+          success={createMatch.isSuccess || updateMatch.isSuccess ? 'Match saved successfully.' : null}
+        />
       </form>
     </PagePanel>
   );

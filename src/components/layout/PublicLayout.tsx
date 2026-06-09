@@ -11,17 +11,17 @@ const navItems = [
 
 export function PublicLayout() {
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
-        <h1 className="text-lg font-bold text-ink">Sunday Strikers</h1>
+    <div className="min-h-screen bg-slate-900 pb-20">
+      <header className="sticky top-0 z-10 border-b border-slate-700 bg-slate-800/95 px-4 py-3 backdrop-blur">
+        <h1 className="text-lg font-bold text-teal-400">🏏 Sunday Strikers</h1>
       </header>
       <main className="mx-auto w-full max-w-3xl px-4 py-4">
         <Outlet />
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-700 bg-slate-800">
         <div className="mx-auto grid max-w-3xl grid-cols-5">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-16 flex-col items-center justify-center gap-1 text-xs ${isActive ? 'text-field' : 'text-slate-500'}`}>
+            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-16 flex-col items-center justify-center gap-1 text-xs ${isActive ? 'text-teal-400' : 'text-slate-400 hover:text-slate-200'} transition-colors`}>
               <item.icon className="h-5 w-5" aria-hidden />
               <span>{item.label}</span>
             </NavLink>

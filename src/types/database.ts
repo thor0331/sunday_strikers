@@ -32,15 +32,21 @@ export interface Database {
           id: string; parent_match_id: string | null; season_id: string | null; match_name: string; match_date: string; match_number: number | null; venue: string | null; is_super_over: boolean; overs_per_innings: number; players_per_team: number;
           status: Database['public']['Enums']['match_status']; team_a_name: string; team_b_name: string; team_a_captain_id: string | null; team_b_captain_id: string | null;
           toss_winner: Database['public']['Enums']['innings_side'] | null; toss_decision: Database['public']['Enums']['toss_decision'] | null;
-          batting_first: Database['public']['Enums']['innings_side'] | null; winner: Database['public']['Enums']['innings_side'] | null; result_text: string | null; notes: string | null;
-          created_by: string | null; created_at: string; updated_at: string;
+          batting_first: Database['public']['Enums']['innings_side'] | null;
+winner: Database['public']['Enums']['innings_side'] | null;
+player_of_match_id: string | null;
+result_text: string | null;
+notes: string | null;
         };
         Insert: {
           id?: string; parent_match_id?: string | null; season_id?: string | null; match_name: string; match_date: string; match_number?: number | null; venue?: string | null; is_super_over?: boolean; overs_per_innings?: number; players_per_team?: number;
           status?: Database['public']['Enums']['match_status']; team_a_name?: string; team_b_name?: string; team_a_captain_id?: string | null; team_b_captain_id?: string | null;
           toss_winner?: Database['public']['Enums']['innings_side'] | null; toss_decision?: Database['public']['Enums']['toss_decision'] | null;
-          batting_first?: Database['public']['Enums']['innings_side'] | null; winner?: Database['public']['Enums']['innings_side'] | null; result_text?: string | null; notes?: string | null;
-          created_by?: string | null; created_at?: string; updated_at?: string;
+          batting_first?: Database['public']['Enums']['innings_side'] | null;
+winner?: Database['public']['Enums']['innings_side'] | null;
+player_of_match_id?: string | null;
+result_text?: string | null;
+notes?: string | null;
         };
         Update: Partial<Database['public']['Tables']['matches']['Insert']>;
         Relationships: [];

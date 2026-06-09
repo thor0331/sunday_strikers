@@ -28,3 +28,11 @@ export function useSetActiveSeason() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['seasons'] })
   });
 }
+
+export function useDeleteSeason() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => seasonRepository.delete(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['seasons'] })
+  });
+}

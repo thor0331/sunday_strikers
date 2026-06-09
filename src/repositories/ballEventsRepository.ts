@@ -1,7 +1,7 @@
 import { supabase } from '../services/supabaseClient';
 import type { Database } from '../types/database';
 import type { BallEvent } from '../types/models';
-import { requireData } from './supabaseErrors';
+import { requireData, parseSupabaseError } from './supabaseErrors';
 
 export type BallEventRow = Database['public']['Tables']['ball_events']['Row'];
 export type BallEventInsert = Database['public']['Tables']['ball_events']['Insert'];
@@ -43,7 +43,7 @@ async function getNextSequenceNumber(inningsId: string): Promise<number> {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) throw parseSupabaseError(error);
   return (data?.sequence_number ?? 0) + 1;
 }
 
@@ -73,11 +73,11 @@ export const ballEventsRepository = {
       .limit(1)
       .maybeSingle();
 
-    if (latestError) throw latestError;
+    if (latestError) throw parseSupabaseError(latestError);
     if (!latest) return null;
 
     const { error: deleteError } = await supabase.from('ball_events').delete().eq('id', latest.id);
-    if (deleteError) throw deleteError;
+    if (deleteError) throw parseSupabaseError(deleteError);
 
     return toBallEvent(latest);
   }

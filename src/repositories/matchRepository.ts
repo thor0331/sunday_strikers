@@ -1,7 +1,7 @@
 import { supabase } from '../services/supabaseClient';
 import type { Database } from '../types/database';
 import type { TeamSide } from '../types/models';
-import { requireData } from './supabaseErrors';
+import { requireData, parseSupabaseError } from './supabaseErrors';
 
 export type MatchInsert = Database['public']['Tables']['matches']['Insert'];
 export type MatchUpdate = Database['public']['Tables']['matches']['Update'];
@@ -85,7 +85,7 @@ export const matchRepository = {
     if (uniquePlayers.size !== assignments.length) throw new Error('A player can only be assigned once.');
 
     const { error: deleteError } = await supabase.from('match_players').delete().eq('match_id', matchId);
-    if (deleteError) throw deleteError;
+    if (deleteError) throw parseSupabaseError(deleteError);
 
     const rows: MatchPlayerInsert[] = assignments.map((assignment) => ({
       match_id: matchId,
@@ -96,7 +96,7 @@ export const matchRepository = {
     }));
 
     const { data, error } = await supabase.from('match_players').insert(rows).select();
-    if (error) throw error;
+    if (error) throw parseSupabaseError(error);
 
     await this.update(matchId, { status: 'teams_created' });
     return data;
@@ -154,7 +154,7 @@ export const matchRepository = {
     };
 
     const { error } = await supabase.from('innings').upsert([firstInnings, secondInnings], { onConflict: 'match_id,innings_number' });
-    if (error) throw error;
+    if (error) throw parseSupabaseError(error);
 
     return { ...updated, overs_per_innings: match.overs_per_innings };
   },
@@ -175,7 +175,7 @@ export const matchRepository = {
       .eq('is_super_over', true)
       .maybeSingle();
 
-    if (existingError) throw existingError;
+    if (existingError) throw parseSupabaseError(existingError);
     if (existingSuperOver) throw new Error('This match already has a Super Over.');
 
     return this.create({
@@ -222,11 +222,36 @@ export const matchRepository = {
     return requireData(data, error);
   },
 
-  async completeMatch(matchId: string, winner: TeamSide | null, resultText: string) {
+  async completeMatch(
+  matchId: string,
+  winner: TeamSide | null,
+  resultText: string,
+  playerOfMatchId?: string | null
+) {
     return this.update(matchId, {
-      status: 'completed',
-      winner,
-      result_text: resultText
+  status: 'completed',
+  winner,
+  result_text: resultText,
+  player_of_match_id: playerOfMatchId ?? null
+});
+  },
+
+  async delete(matchId: string) {
+    const { data, error } = await supabase.from('matches').delete().eq('id', matchId).select();
+    return requireData(data, error);
+  },
+
+  async reset(matchId: string) {
+    const { error: deleteInningsError } = await supabase.from('innings').delete().eq('match_id', matchId);
+    if (deleteInningsError) throw parseSupabaseError(deleteInningsError);
+
+    return this.update(matchId, {
+      status: 'teams_created',
+      toss_winner: null,
+      toss_decision: null,
+      batting_first: null,
+      winner: null,
+      result_text: null
     });
   }
 };
