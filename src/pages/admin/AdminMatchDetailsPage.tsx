@@ -123,7 +123,7 @@ export function AdminMatchDetailsPage() {
 
       {/* Match Information Panel */}
       <PagePanel title="Match Information">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-slate-500 uppercase font-bold">Match Name</p>
             <p className="text-lg font-bold text-slate-800 mt-1">{match.match_name}</p>
@@ -157,6 +157,17 @@ export function AdminMatchDetailsPage() {
             </p>
           </div>
         </div>
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+  <p className="text-xs text-slate-500 uppercase font-bold">
+    Player of the Match
+  </p>
+
+  <p className="text-lg font-bold text-amber-700 mt-2">
+    {match.player_of_match_id
+      ? playerMap.get(match.player_of_match_id) ?? 'Unknown Player'
+      : 'Not Selected'}
+  </p>
+</div>
       </PagePanel>
 
       {/* Scorecards */}

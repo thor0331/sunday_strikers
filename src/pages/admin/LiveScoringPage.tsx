@@ -827,33 +827,44 @@ export function LiveScoringPage() {
             {battingTeamName} scored {inningsState.totalRuns} runs with {inningsState.wickets} wickets down.
           </p>
           {activeInnings.innings_number === 1 ? (
-            <Button className="w-full" onClick={handleCompleteInnings1} disabled={updateInnings.isPending}>
-              Proceed to 2nd Innings
-            </Button>
-          ) : (
-            <div className="space-y-2 mb-3">
-            <label className="block text-sm font-medium">
-    Player of the Match
-  </label>
-
-  <select
-    className="w-full rounded border px-3 py-2"
-    value={playerOfMatchId}
-    onChange={(e) => setPlayerOfMatchId(e.target.value)}
+  <Button
+    className="w-full"
+    onClick={handleCompleteInnings1}
+    disabled={updateInnings.isPending}
   >
-    <option value="">Select Player</option>
+    Proceed to 2nd Innings
+  </Button>
+) : (
+  <>
+    <div className="space-y-2 mb-3">
+      <label className="block text-sm font-medium">
+        Player of the Match
+      </label>
 
-    {matchPlayers.map((player) => (
-  <option key={player.player_id} value={player.player_id}>
-    {playerMap.get(player.player_id) ?? player.player_id}
-  </option>
-))}
-  </select>
-</div>>
-            <Button className="w-full" onClick={handleCompleteInnings2} disabled={updateInnings.isPending || completeMatch.isPending}>
-              Complete Match
-            </Button>
-          )}
+      <select
+        className="w-full rounded border px-3 py-2"
+        value={playerOfMatchId}
+        onChange={(e) => setPlayerOfMatchId(e.target.value)}
+      >
+        <option value="">Select Player</option>
+
+        {matchPlayers.map((player) => (
+          <option key={player.player_id} value={player.player_id}>
+            {playerMap.get(player.player_id) ?? player.player_id}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <Button
+      className="w-full"
+      onClick={handleCompleteInnings2}
+      disabled={updateInnings.isPending || completeMatch.isPending}
+    >
+      Complete Match
+    </Button>
+  </>
+)}
           <MutationStatus error={updateInnings.error || completeMatch.error} />
         </section>
       ) : null}
