@@ -2,6 +2,7 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { MatchHistoryRow } from '../../components/matches/MatchHistoryRow';
 import { useMatchHistory } from '../../hooks/useMatches';
 import { useEffect } from 'react';
+import { Trophy, AlertCircle } from 'lucide-react';
 
 export function MatchHistoryPage() {
   const { data: history = [], isLoading, error } = useMatchHistory();
@@ -22,19 +23,33 @@ export function MatchHistoryPage() {
 
   return (
     <PagePanel title="Match History">
-      {isLoading && <p className="text-slate-400 font-medium animate-pulse">Loading matches...</p>}
+      {isLoading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-500 border-t-transparent"></div>
+            <p className="text-slate-500 font-medium">Loading matches...</p>
+          </div>
+        </div>
+      )}
       
       {error && (
-        <div className="rounded-lg bg-red-950 border border-red-700 p-4 text-red-200 space-y-2">
-          <p className="font-semibold">Error Loading Match History</p>
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-5 text-red-300 space-y-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <p className="font-semibold">Error Loading Match History</p>
+          </div>
           <p className="text-sm">{error instanceof Error ? error.message : 'Unable to load match history.'}</p>
-          <p className="text-xs text-red-300">Check browser console for detailed error information.</p>
         </div>
       )}
 
       {!isLoading && !error && completedMatches.length === 0 && (
-        <div className="rounded-lg bg-slate-800 border border-slate-700 p-8 text-center">
-          <p className="text-slate-400">No completed matches yet. Complete a match to see it here.</p>
+        <div className="rounded-xl border border-dashed border-slate-700/50 p-10 text-center">
+          <div className="flex justify-center mb-3">
+            <div className="h-12 w-12 rounded-full bg-slate-700/50 flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-slate-500" />
+            </div>
+          </div>
+          <p className="text-slate-500">No completed matches yet.</p>
         </div>
       )}
 

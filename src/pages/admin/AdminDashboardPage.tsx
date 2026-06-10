@@ -44,7 +44,10 @@ export function AdminDashboardPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-slate-500 font-medium animate-pulse">Loading dashboard data...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-500 border-t-transparent"></div>
+          <p className="text-slate-500 font-medium">Loading dashboard data...</p>
+        </div>
       </div>
     );
   }
@@ -134,32 +137,35 @@ export function AdminDashboardPage() {
       {/* 3. Match Day Active Workflow */}
       <PagePanel title="Match Day">
         {matchDay ? (
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-700 border border-slate-600 rounded-lg p-4">
-            <div>
-              <h3 className="font-bold text-lg text-slate-100">{matchDay.match_name}</h3>
-              <p className="text-sm text-slate-400 mt-1">
-                {matchDay.match_date} - {matchDay.venue || 'No Venue'} - {matchDay.overs_per_innings} overs
-              </p>
-              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 capitalize">
-                Status: {matchDay.status.replace('_', ' ')}
+          <div className="bg-gradient-to-br from-teal-500/10 to-teal-500/5 border border-teal-500/20 rounded-xl p-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-bold text-lg text-slate-100">{matchDay.match_name}</h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  {matchDay.match_date} &bull; {matchDay.venue || 'No Venue'} &bull; {matchDay.overs_per_innings} overs
+                </p>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 capitalize">
+                  <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                  {matchDay.status.replace('_', ' ')}
+                </div>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-              <Link to={`/admin/matches/${matchDay.id}/teams`} className="flex-1 sm:flex-none">
-                <Button variant="secondary" className="w-full text-sm">Teams</Button>
-              </Link>
-              <Link to={`/admin/matches/${matchDay.id}/toss`} className="flex-1 sm:flex-none">
-                <Button variant="secondary" className="w-full text-sm">Toss</Button>
-              </Link>
-              <Link to={`/admin/matches/${matchDay.id}/scoring`} className="w-full sm:w-auto">
-                <Button className="w-full text-sm">Scoring Console</Button>
-              </Link>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <Link to={`/admin/matches/${matchDay.id}/teams`} className="flex-1 sm:flex-none">
+                  <Button variant="secondary" className="w-full text-sm">Teams</Button>
+                </Link>
+                <Link to={`/admin/matches/${matchDay.id}/toss`} className="flex-1 sm:flex-none">
+                  <Button variant="secondary" className="w-full text-sm">Toss</Button>
+                </Link>
+                <Link to={`/admin/matches/${matchDay.id}/scoring`} className="w-full sm:w-auto">
+                  <Button className="w-full text-sm">Scoring Console</Button>
+                </Link>
+              </div>
             </div>
           </div>
         ) : (
-          <p className="text-slate-400 py-3 text-center bg-slate-700 rounded-lg border border-dashed border-slate-600">
-            No active match-day workflow.
-          </p>
+          <div className="text-slate-500 py-6 text-center rounded-xl border border-dashed border-slate-700/50 bg-slate-800/30">
+            <p>No active match-day workflow.</p>
+          </div>
         )}
       </PagePanel>
 
@@ -182,11 +188,11 @@ export function AdminDashboardPage() {
               if (match.status === 'abandoned') badgeColor = 'bg-red-500/20 text-red-300';
 
               return (
-                <article key={match.id} className="rounded-xl border border-slate-700 bg-slate-800 p-4 hover:border-slate-600 hover:bg-slate-750 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div className="space-y-1 min-w-0">
+                <article key={match.id} className="group rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 hover:border-slate-600/60 hover:bg-slate-800/80 transition-all duration-200 hover:shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="space-y-1.5 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-bold text-slate-100 text-base truncate">{match.match_name}</h4>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${badgeColor}`}>
+                      <h4 className="font-bold text-slate-100 text-base truncate group-hover:text-teal-400 transition-colors">{match.match_name}</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${badgeColor}`}>
                         {match.status.replace('_', ' ')}
                       </span>
                     </div>
@@ -248,7 +254,7 @@ export function AdminDashboardPage() {
                       variant="secondary"
                       disabled={!canReset || resetMatch.isPending}
                       onClick={() => handleResetMatch(match.id, match.match_name)}
-                      className="flex-1 md:flex-none py-1.5 px-3 text-xs text-amber-700 hover:text-amber-800 disabled:text-slate-400"
+                      className="flex-1 md:flex-none py-1.5 px-3 text-xs text-amber-400 hover:text-amber-300 disabled:text-slate-500"
                     >
                       Reset
                     </Button>
