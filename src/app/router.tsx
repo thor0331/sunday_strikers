@@ -13,11 +13,18 @@ import { TossPage } from '../pages/admin/TossPage';
 import { TeamFormationPage } from '../pages/admin/TeamFormationPage';
 import { AvailabilityPage } from '../pages/public/AvailabilityPage';
 import { DashboardPage } from '../pages/public/DashboardPage';
+import { HallOfFamePage } from '../pages/public/HallOfFamePage';
 import { LeaderboardsPage } from '../pages/public/LeaderboardsPage';
+import { MatchCenterPage } from '../pages/public/MatchCenterPage';
 import { MatchHistoryPage } from '../pages/public/MatchHistoryPage';
 import { MatchSummaryPage } from '../pages/public/MatchSummaryPage';
+import { MyDashboardPage } from '../pages/public/MyDashboardPage';
+import { ClubRecordsPage } from '../pages/public/ClubRecordsPage';
+import { SeasonSummaryPage } from '../pages/public/SeasonSummaryPage';
 import { PlayersPage } from '../pages/public/PlayersPage';
+import { SeasonAwardsPage } from '../pages/public/SeasonAwardsPage';
 import { SeasonsPage } from '../pages/public/SeasonsPage';
+import { TeamComparisonPage } from '../pages/public/TeamComparisonPage';
 
 export const router = createBrowserRouter([
   {
@@ -25,11 +32,18 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <DashboardPage /> },
       { path: '/players', element: <PlayersPage /> },
+      { path: '/my-dashboard', element: <MyDashboardPage /> },
       { path: '/availability', element: <AvailabilityPage /> },
-      { path: '/matches', element: <MatchHistoryPage /> },
+      { path: '/matches', element: <MatchCenterPage /> },
+      { path: '/matches/history', element: <MatchHistoryPage /> },
       { path: '/matches/:matchId', element: <MatchSummaryPage /> },
       { path: '/leaderboards', element: <LeaderboardsPage /> },
-      { path: '/seasons', element: <SeasonsPage /> }
+      { path: '/seasons', element: <SeasonsPage /> },
+      { path: '/teams', element: <TeamComparisonPage /> },
+      { path: '/awards', element: <SeasonAwardsPage /> },
+      { path: '/hall-of-fame', element: <HallOfFamePage /> },
+      { path: '/records', element: <ClubRecordsPage /> },
+      { path: '/season-summary', element: <SeasonSummaryPage /> }
     ]
   },
   { path: '/admin/login', element: <AdminLoginPage /> },

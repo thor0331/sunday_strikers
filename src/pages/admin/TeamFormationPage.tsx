@@ -107,10 +107,10 @@ export function TeamFormationPage() {
           {selectablePlayers.map((player) => {
             const lockedTeam = player.id === resolvedTeamACaptainId ? 'team_a' : player.id === resolvedTeamBCaptainId ? 'team_b' : null;
             return (
-              <div key={player.id} className="grid grid-cols-[1fr_9rem] items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
-                <span className="font-medium">{player.display_name}</span>
+              <div key={player.id} className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                <span className="flex-1 min-w-0 font-medium text-sm truncate">{player.display_name}</span>
                 <select
-                  className="min-h-10 rounded-md border border-slate-300 bg-white px-2"
+                  className="min-h-10 w-28 shrink-0 rounded-md border border-slate-300 bg-white px-2 text-sm"
                   value={lockedTeam ?? teamAssignments[player.id] ?? ''}
                   disabled={Boolean(lockedTeam)}
                   onChange={(event) => setPlayerTeam(player.id, event.target.value as TeamSide | '')}

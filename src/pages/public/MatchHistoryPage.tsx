@@ -2,7 +2,8 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { MatchHistoryRow } from '../../components/matches/MatchHistoryRow';
 import { useMatchHistory } from '../../hooks/useMatches';
 import { useEffect } from 'react';
-import { Trophy, AlertCircle } from 'lucide-react';
+import { Trophy, AlertCircle, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export function MatchHistoryPage() {
   const { data: history = [], isLoading, error } = useMatchHistory();
@@ -23,6 +24,14 @@ export function MatchHistoryPage() {
 
   return (
     <PagePanel title="Match History">
+      <div className="mb-3 flex gap-2">
+        <Link to="/matches" className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors">
+          <Zap className="w-3 h-3" /> Match Center
+        </Link>
+        <Link to="/teams" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors">
+          ⚔️ Team Comparison
+        </Link>
+      </div>
       {isLoading && (
         <div className="flex items-center justify-center py-8">
           <div className="flex flex-col items-center gap-3">
@@ -33,9 +42,9 @@ export function MatchHistoryPage() {
       )}
       
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-5 text-red-300 space-y-2">
+        <div className="rounded-xl bg-red-50 border border-red-200 p-5 text-red-700 space-y-2">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-400" />
+            <AlertCircle className="w-5 h-5 text-red-500" />
             <p className="font-semibold">Error Loading Match History</p>
           </div>
           <p className="text-sm">{error instanceof Error ? error.message : 'Unable to load match history.'}</p>
@@ -43,10 +52,10 @@ export function MatchHistoryPage() {
       )}
 
       {!isLoading && !error && completedMatches.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-700/50 p-10 text-center">
+        <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center">
           <div className="flex justify-center mb-3">
-            <div className="h-12 w-12 rounded-full bg-slate-700/50 flex items-center justify-center">
-              <Trophy className="w-6 h-6 text-slate-500" />
+            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-slate-400" />
             </div>
           </div>
           <p className="text-slate-500">No completed matches yet.</p>

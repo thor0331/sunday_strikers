@@ -127,7 +127,7 @@ export function MatchCreationPage() {
           onChange={(event) => setVenue(event.target.value)}
           disabled={isStarted}
         />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <TextField
             label="Overs"
             type="number"
@@ -147,7 +147,7 @@ export function MatchCreationPage() {
             disabled={isStarted}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <TextField
             label="Team A Name"
             value={teamAName}

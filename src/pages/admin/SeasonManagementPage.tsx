@@ -77,10 +77,11 @@ export function SeasonManagementPage() {
                   </p>
                   {season.is_active ? <p className="mt-1 text-sm font-semibold text-teal-600">Active season</p> : null}
                 </div>
-                <div className="grid gap-2">
+                <div className="flex flex-wrap gap-2 shrink-0">
                   <Button
                     type="button"
                     variant="secondary"
+                    className="text-xs px-3 py-1.5"
                     onClick={() => {
                       setEditingId(season.id);
                       setName(season.name);
@@ -90,12 +91,13 @@ export function SeasonManagementPage() {
                   >
                     Edit
                   </Button>
-                  <Button type="button" disabled={season.is_active} onClick={() => void setActiveSeason.mutateAsync(season.id)}>
+                  <Button type="button" disabled={season.is_active} className="text-xs px-3 py-1.5" onClick={() => void setActiveSeason.mutateAsync(season.id)}>
                     Set Active
                   </Button>
                   <Button
                     type="button"
                     variant="danger"
+                    className="text-xs px-3 py-1.5"
                     disabled={season.is_active || deleteSeason.isPending}
                     onClick={() => handleDeleteSeason(season.id, season.name)}
                   >

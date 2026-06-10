@@ -7,7 +7,7 @@ export function useMatches() {
 }
 
 export function useParentMatches() {
-  return useQuery({ queryKey: ['parent-matches'], queryFn: matchRepository.listParentMatches });
+  return useQuery({ queryKey: ['parent-matches'], queryFn: matchRepository.listParentMatches, refetchInterval: 15000 });
 }
 
 export function useMatchHistory() {
@@ -18,7 +18,7 @@ export function useMatchHistory() {
 }
 
 export function useMatch(matchId: string | null) {
-  return useQuery({ queryKey: ['match', matchId], queryFn: () => matchRepository.get(matchId!), enabled: Boolean(matchId) });
+  return useQuery({ queryKey: ['match', matchId], queryFn: () => matchRepository.get(matchId!), enabled: Boolean(matchId), refetchInterval: 15000 });
 }
 
 export function useMatchPlayers(matchId: string | null) {
@@ -91,7 +91,8 @@ export function useInnings(matchId: string | null) {
   return useQuery({
     queryKey: ['innings', matchId],
     queryFn: () => matchRepository.getInnings(matchId!),
-    enabled: Boolean(matchId)
+    enabled: Boolean(matchId),
+    refetchInterval: 15000,
   });
 }
 
@@ -133,6 +134,19 @@ export function useCompleteMatch() {
       void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
       void queryClient.invalidateQueries({ queryKey: ['match-history'] });
       void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
+    }
+  });
+}
+
+export function useSetMatchInProgress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (matchId: string) => matchRepository.setInProgress(matchId),
+    onSuccess: (match) => {
+      void queryClient.invalidateQueries({ queryKey: ['match', match.id] });
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
+      void queryClient.invalidateQueries({ queryKey: ['match-history'] });
     }
   });
 }

@@ -222,6 +222,10 @@ export const matchRepository = {
     return requireData(data, error);
   },
 
+  async setInProgress(matchId: string) {
+    return this.update(matchId, { status: 'in_progress' });
+  },
+
   async completeMatch(
   matchId: string,
   winner: TeamSide | null,

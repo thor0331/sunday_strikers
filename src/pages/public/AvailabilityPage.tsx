@@ -3,13 +3,20 @@ import { Button } from '../../components/forms/Button';
 import { SelectField, TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
 import { useAvailabilityMatches, useMatchAvailability, useSetAvailability } from '../../hooks/useAvailability';
+import { useParentMatches } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
 import type { AvailabilityStatus } from '../../types/models';
 import { useMemo, useState, type FormEvent } from 'react';
+import { CircularAvatar } from '../../components/common/CircularAvatar';
+import { computeAttendanceRate } from '../../utils/analytics';
+import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
+import { BarChart3, TrendingUp } from 'lucide-react';
 
 export function AvailabilityPage() {
   const { data: matches = [], isLoading: matchesLoading } = useAvailabilityMatches();
+  const { data: allMatches = [] } = useParentMatches();
   const { data: players = [] } = usePlayers();
+  const avatarViewer = useAvatarViewerStore();
   const [matchId, setMatchId] = useState('');
   const [playerId, setPlayerId] = useState('');
   const [status, setStatus] = useState<AvailabilityStatus>('available');
@@ -19,6 +26,36 @@ export function AvailabilityPage() {
 
   const activePlayers = useMemo(() => players.filter((player) => player.status === 'active'), [players]);
   const availabilityByPlayer = useMemo(() => new Map(availability.map((item) => [item.player_id, item])), [availability]);
+
+  // Compute availability leaderboard across all matches
+  const leaderboard = useMemo(() => {
+    const completedMatches = allMatches.filter(m => m.status === 'completed');
+    if (completedMatches.length === 0) return [];
+    // For each active player, compute how many matches they were available
+    const playerScores: { playerId: string; name: string; photo: string | null; total: number; available: number; pct: number }[] = [];
+    for (const player of activePlayers) {
+      let available = 0;
+      let total = 0;
+      for (const match of completedMatches) {
+        const av = availability.find(a => a.player_id === player.id && a.match_id === match.id);
+        if (av) {
+          total++;
+          if (av.status === 'available') available++;
+        }
+      }
+      if (total > 0) {
+        playerScores.push({
+          playerId: player.id,
+          name: player.display_name,
+          photo: player.photo_url,
+          total,
+          available,
+          pct: computeAttendanceRate(total, available),
+        });
+      }
+    }
+    return playerScores.sort((a, b) => b.pct - a.pct).slice(0, 10);
+  }, [allMatches, activePlayers, availability]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -61,19 +98,69 @@ export function AvailabilityPage() {
         {matchesLoading ? <p>Loading matches...</p> : null}
         {!matchId ? <p>Select a match to see player availability.</p> : null}
         {matchId ? (
-          <div className="grid gap-2">
-            {activePlayers.map((player) => {
-              const item = availabilityByPlayer.get(player.id);
-              return (
-                <div key={player.id} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2">
-                  <span className="font-medium">{player.display_name}</span>
-                  <span className="text-sm capitalize text-slate-600">{item?.status ?? 'not marked'}</span>
+          <>
+            <div className="rounded-xl bg-teal-50 border border-teal-200 p-4 mb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-teal-600">Attendance</p>
+                  <p className="text-2xl font-extrabold text-teal-700 mt-0.5">
+                    {availability.filter(a => a.status === 'available').length}
+                    <span className="text-sm text-teal-500 font-semibold"> / {activePlayers.length} players</span>
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+                <div className={`text-lg font-bold ${availability.length > 0 ? 'text-teal-600' : 'text-slate-400'}`}>
+                  {availability.length > 0 ? Math.round(availability.filter(a => a.status === 'available').length / activePlayers.length * 100) : 0}%
+                </div>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-teal-100 overflow-hidden">
+                <div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: `${activePlayers.length > 0 ? (availability.filter(a => a.status === 'available').length / activePlayers.length) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              {activePlayers.map((player) => {
+                const item = availabilityByPlayer.get(player.id);
+                const statusColor = item?.status === 'available' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : item?.status === 'maybe' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-red-100 text-red-700 border-red-200';
+                const statusDot = item?.status === 'available' ? 'bg-emerald-500' : item?.status === 'maybe' ? 'bg-amber-400' : 'bg-red-400';
+                return (
+                  <div key={player.id} className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                    <CircularAvatar src={player.photo_url} alt={player.display_name} size="sm" onClick={player.photo_url ? () => avatarViewer.open(player.photo_url!, player.display_name) : undefined} />
+                    <span className="flex-1 min-w-0 text-sm font-medium truncate">{player.display_name}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusColor}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} />
+                      {item?.status ?? 'not marked'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : null}
       </PagePanel>
+
+      {/* Availability Leaderboard */}
+      {leaderboard.length > 0 && (
+        <PagePanel title="Availability Leaderboard">
+          <p className="text-[10px] text-slate-500 -mt-2 mb-3">Top 10 players by attendance rate</p>
+          <div className="space-y-2">
+            {leaderboard.map((entry, i) => (
+              <div key={entry.playerId} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-teal-300 transition-colors">
+                <span className="w-5 text-center text-xs font-bold text-slate-400 shrink-0">#{i + 1}</span>
+                <CircularAvatar src={entry.photo} alt={entry.name} size="sm" onClick={entry.photo ? () => avatarViewer.open(entry.photo!, entry.name) : undefined} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{entry.name}</p>
+                  <p className="text-[10px] text-slate-400">{entry.available}/{entry.total} matches</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-teal-600">{entry.pct}%</p>
+                  <div className="mt-1 h-1.5 w-16 rounded-full bg-slate-100 ml-auto overflow-hidden">
+                    <div className="h-full rounded-full bg-teal-500" style={{ width: `${entry.pct}%` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </PagePanel>
+      )}
     </div>
   );
 }

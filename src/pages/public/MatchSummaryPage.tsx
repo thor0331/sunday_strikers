@@ -1,10 +1,17 @@
 import { PagePanel } from '../../components/common/PagePanel';
-import { useMatch, useInnings, useMatchPlayers } from '../../hooks/useMatches';
+import { useMatch, useInnings, useMatchPlayers, useParentMatches } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useBallEvents } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import { useParams } from 'react-router-dom';
 import { useMemo } from 'react';
+import { Share2, Swords } from 'lucide-react';
+import { MatchHeroes } from '../../components/common/MatchHeroes';
+import { MomentumGraph } from '../../components/common/MomentumGraph';
+import { MatchTimeline } from '../../components/common/MatchTimeline';
+import { EmptyState } from '../../components/common/EmptyState';
+import { shareMatchResult } from '../../services/shareService';
+import { computeHeadToHead } from '../../utils/analytics';
 
 export function MatchSummaryPage() {
   const { matchId = '' } = useParams();
@@ -13,7 +20,9 @@ export function MatchSummaryPage() {
   const { data: matchPlayers = [], isLoading: playersLoading } = useMatchPlayers(matchId);
   const { data: players = [] } = usePlayers();
 
+  const { data: allMatches = [] } = useParentMatches();
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
+  const playerPhotoMap = useMemo(() => new Map(players.map((p) => [p.id, p.photo_url])), [players]);
 
   const innings1 = inningsList.find((i) => i.innings_number === 1);
   const innings2 = inningsList.find((i) => i.innings_number === 2);
@@ -79,30 +88,6 @@ export function MatchSummaryPage() {
     }
   }, [innings2, match, ballEvents2, matchPlayers]);
 
-  const topBatter = useMemo(() => {
-    if (!innings1Stats && !innings2Stats) return null;
-    const all = [
-      ...Object.values(innings1Stats?.battingStats ?? {}),
-      ...Object.values(innings2Stats?.battingStats ?? {})
-    ];
-    return all.reduce(
-      (max, batter) => (batter.runs > (max?.runs ?? 0) ? batter : max),
-      all[0]
-    );
-  }, [innings1Stats, innings2Stats]);
-
-  const topBowler = useMemo(() => {
-    if (!innings1Stats && !innings2Stats) return null;
-    const all = [
-      ...Object.values(innings1Stats?.bowlingStats ?? {}),
-      ...Object.values(innings2Stats?.bowlingStats ?? {})
-    ];
-    return all.reduce(
-      (max, bowler) => (bowler.wickets > (max?.wickets ?? 0) ? bowler : max),
-      all[0]
-    );
-  }, [innings1Stats, innings2Stats]);
-
   const isLoading = matchLoading || inningsLoading || playersLoading;
 
   if (isLoading) {
@@ -122,7 +107,7 @@ export function MatchSummaryPage() {
     );
   }
 
-  if (match.status !== 'completed') {
+  if (['draft', 'scheduled', 'teams_created', 'abandoned'].includes(match.status)) {
     return (
       <div className="space-y-4 max-w-2xl mx-auto">
         <PagePanel title="Match Details">
@@ -141,25 +126,45 @@ export function MatchSummaryPage() {
     );
   }
 
+  const isLive = match.status === 'in_progress';
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Match Header */}
       <PagePanel title="Match Summary">
         <div className="space-y-4">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-slate-800">{match.match_name}</h2>
+            <div className="flex items-center justify-center gap-3">
+              <h2 className="text-2xl font-bold text-slate-800">{match.match_name}</h2>
+              {isLive && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  LIVE
+                </span>
+              )}
+            </div>
             <p className="text-sm text-slate-500">{match.match_date} • {match.venue || 'No Venue'}</p>
           </div>
 
-          {/* Result Banner */}
-          {match.result_text && (
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
+          {/* Result Banner (completed only) */}
+          {match.result_text && !isLive && (
+            <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 text-center">
               <p className="text-lg font-bold text-emerald-900">{match.result_text}</p>
             </div>
           )}
 
+          {/* Match Timeline (completed only) */}
+          {!isLive && (
+            <MatchTimeline
+              matchStatus={match.status}
+              innings1Status={innings1?.status}
+              innings2Status={innings2?.status}
+              resultText={match.result_text}
+            />
+          )}
+
           {/* Team Scores */}
-          <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
             {/* Innings 1 */}
             <div className="rounded-lg border border-slate-200 p-4">
               <h3 className="font-semibold text-slate-700 mb-2">{innings1 ? (innings1.batting_team === 'team_a' ? match.team_a_name : match.team_b_name) : 'Team'}</h3>
@@ -169,6 +174,7 @@ export function MatchSummaryPage() {
                     {innings1Stats.totalRuns}/{innings1Stats.wickets}
               </div>
                   <p className="text-xs text-slate-500 mt-1">{innings1Stats.oversDisplay} overs</p>
+                  {isLive && <p className="text-xs text-slate-500">CRR: {innings1Stats.currentRunRate}</p>}
                 </div>
               ) : (
                 <p className="text-slate-500 text-sm">-</p>
@@ -184,6 +190,12 @@ export function MatchSummaryPage() {
                     {innings2Stats.totalRuns}/{innings2Stats.wickets}
                   </div>
                   <p className="text-xs text-slate-500 mt-1">{innings2Stats.oversDisplay} overs</p>
+                  {isLive && (
+                    <>
+                      <p className="text-xs text-slate-500">CRR: {innings2Stats.currentRunRate}</p>
+                      {innings2 && <p className="text-xs font-semibold text-amber-600">Target: {innings2.target_runs}</p>}
+                    </>
+                  )}
                 </div>
               ) : (
                 <p className="text-slate-500 text-sm">-</p>
@@ -193,35 +205,69 @@ export function MatchSummaryPage() {
         </div>
       </PagePanel>
 
-      {/* Player of the Match Stats */}
-      <PagePanel title="Key Performances">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Top Batter */}
-          {topBatter && (
-            <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Top Batter</p>
-              <p className="text-lg font-bold text-slate-800 mt-1">{playerMap.get(topBatter.playerId) ?? 'Player'}</p>
-              <p className="text-sm text-slate-600 mt-1">{topBatter.runs} runs ({topBatter.balls}b)</p>
-            </div>
-          )}
-
-          {/* Top Bowler */}
-          {topBowler && (
-            <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Top Bowler</p>
-              <p className="text-lg font-bold text-slate-800 mt-1">{playerMap.get(topBowler.playerId) ?? 'Player'}</p>
-              <p className="text-sm text-slate-600 mt-1">{topBowler.wickets} wickets ({topBowler.oversDisplay} ov)</p>
-            </div>
-          )}
-
-          {/* Match Info */}
-          <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Match Type</p>
-            <p className="text-lg font-bold text-slate-800 mt-1">{match.overs_per_innings} Overs</p>
-            <p className="text-sm text-slate-600 mt-1">{match.players_per_team} a side</p>
+      {/* Match Heroes (completed only) */}
+      {!isLive && (
+        <PagePanel title="Match Heroes">
+          <MatchHeroes
+            match={match}
+            innings1Stats={innings1Stats}
+            innings2Stats={innings2Stats}
+            playerMap={playerMap}
+            playerPhotoMap={playerPhotoMap}
+          />
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                const s1 = innings1Stats ? `${innings1Stats.totalRuns}/${innings1Stats.wickets} (${innings1Stats.oversDisplay} ov)` : '-';
+                const s2 = innings2Stats ? `${innings2Stats.totalRuns}/${innings2Stats.wickets} (${innings2Stats.oversDisplay} ov)` : '-';
+                const potm = match.player_of_match_id ? playerMap.get(match.player_of_match_id) ?? null : null;
+                void shareMatchResult(match, s1, s2, potm);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100 transition-colors border border-teal-200"
+            >
+              <Share2 className="w-4 h-4" /> Share Result
+            </button>
           </div>
-        </div>
-      </PagePanel>
+        </PagePanel>
+      )}
+
+      {/* Head to Head */}
+      {match && (
+        <PagePanel title="Head to Head">
+          <div className="space-y-3">
+            {(() => {
+              const h2h = computeHeadToHead(allMatches, match.team_a_name, match.team_b_name);
+              if (h2h.matchesPlayed === 0) return <p className="text-sm text-slate-400 text-center py-2">No prior meetings.</p>;
+              return (
+                <>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-2">
+                      <p className="text-2xl font-extrabold text-teal-600">{h2h.teamAWins}</p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold truncate">{match.team_a_name}</p>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-2xl font-extrabold text-slate-700">{h2h.matchesPlayed}</p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">Matches</p>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-2xl font-extrabold text-blue-600">{h2h.teamBWins}</p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold truncate">{match.team_b_name}</p>
+                    </div>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-blue-500" style={{ width: `${h2h.teamAWinPercentage}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500">
+                    <span>{h2h.teamAWinPercentage}%</span>
+                    <span>{h2h.teamBWinPercentage}%</span>
+                  </div>
+                  {h2h.draws > 0 && <p className="text-xs text-slate-400 text-center">{h2h.draws} draw(s)</p>}
+                </>
+              );
+            })()}
+          </div>
+        </PagePanel>
+      )}
 
       {/* Innings Summary Panels */}
       {innings1Stats && (
@@ -243,6 +289,13 @@ export function MatchSummaryPage() {
               <p className="text-xs text-slate-600 font-semibold">Run Rate</p>
               <p className="text-2xl font-bold text-slate-700 mt-1">{innings1Stats.currentRunRate}</p>
             </div>
+          </div>
+          <div className="mt-4">
+            <MomentumGraph
+              ballEvents={ballEvents1}
+              oversPerInnings={match.overs_per_innings}
+              battingTeamName={innings1?.batting_team === 'team_a' ? match.team_a_name : match.team_b_name}
+            />
           </div>
         </PagePanel>
       )}
@@ -266,6 +319,13 @@ export function MatchSummaryPage() {
               <p className="text-xs text-slate-600 font-semibold">Run Rate</p>
               <p className="text-2xl font-bold text-slate-700 mt-1">{innings2Stats.currentRunRate}</p>
             </div>
+          </div>
+          <div className="mt-4">
+            <MomentumGraph
+              ballEvents={ballEvents2}
+              oversPerInnings={match.overs_per_innings}
+              battingTeamName={innings2?.batting_team === 'team_a' ? match.team_a_name : match.team_b_name}
+            />
           </div>
         </PagePanel>
       )}

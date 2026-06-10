@@ -57,59 +57,59 @@ export function AdminDashboardPage() {
       {/* 1. Statistics Cards Grid */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Players */}
-        <div className="p-4 rounded-xl border border-teal-700 bg-slate-800 shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-600 transition-all">
+        <div className="p-4 rounded-xl border border-teal-200 bg-white shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-300 transition-all">
           <div className="flex justify-between items-start">
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Players</span>
-            <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Players</span>
+            <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </div>
-          <span className="text-3xl font-extrabold text-teal-300">{totalPlayers}</span>
+          <span className="text-3xl font-extrabold text-teal-700">{totalPlayers}</span>
         </div>
 
         {/* Card 2: Total Seasons */}
-        <div className="p-4 rounded-xl border border-teal-700 bg-slate-800 shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-600 transition-all">
+        <div className="p-4 rounded-xl border border-teal-200 bg-white shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-300 transition-all">
           <div className="flex justify-between items-start">
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Seasons</span>
-            <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Seasons</span>
+            <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          <span className="text-3xl font-extrabold text-teal-300">{totalSeasons}</span>
+          <span className="text-3xl font-extrabold text-teal-700">{totalSeasons}</span>
         </div>
 
         {/* Card 3: Total Matches */}
-        <div className="p-4 rounded-xl border border-teal-700 bg-slate-800 shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-600 transition-all">
+        <div className="p-4 rounded-xl border border-teal-200 bg-white shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-300 transition-all">
           <div className="flex justify-between items-start">
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Matches</span>
-            <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Matches</span>
+            <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <span className="text-3xl font-extrabold text-teal-300">{totalMatches}</span>
+          <span className="text-3xl font-extrabold text-teal-700">{totalMatches}</span>
         </div>
 
         {/* Card 4: Completed Matches */}
-        <div className="p-4 rounded-xl border border-teal-700 bg-slate-800 shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-600 transition-all">
+        <div className="p-4 rounded-xl border border-teal-200 bg-white shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-300 transition-all">
           <div className="flex justify-between items-start">
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Completed</span>
-            <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Completed</span>
+            <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <span className="text-3xl font-extrabold text-teal-300">{completedMatches}</span>
+          <span className="text-3xl font-extrabold text-teal-700">{completedMatches}</span>
         </div>
 
         {/* Card 5: Ongoing Matches */}
-        <div className="p-4 rounded-xl border border-teal-700 bg-slate-800 shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-600 transition-all col-span-2 sm:col-span-1">
+        <div className="p-4 rounded-xl border border-teal-200 bg-white shadow-sm flex flex-col justify-between h-28 hover:shadow-md hover:border-teal-300 transition-all col-span-2 sm:col-span-1">
           <div className="flex justify-between items-start">
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-400">Ongoing</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Ongoing</span>
             <span className="flex h-3 w-3 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-teal-500"></span>
             </span>
           </div>
-          <span className="text-3xl font-extrabold text-teal-300">{ongoingMatches}</span>
+          <span className="text-3xl font-extrabold text-teal-700">{ongoingMatches}</span>
         </div>
       </section>
 
@@ -137,15 +137,15 @@ export function AdminDashboardPage() {
       {/* 3. Match Day Active Workflow */}
       <PagePanel title="Match Day">
         {matchDay ? (
-          <div className="bg-gradient-to-br from-teal-500/10 to-teal-500/5 border border-teal-500/20 rounded-xl p-5">
+          <div className="bg-gradient-to-br from-teal-50 to-white border border-teal-200 rounded-xl p-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h3 className="font-bold text-lg text-slate-100">{matchDay.match_name}</h3>
-                <p className="text-sm text-slate-400 mt-1">
+                <h3 className="font-bold text-lg text-slate-800">{matchDay.match_name}</h3>
+                <p className="text-sm text-slate-500 mt-1">
                   {matchDay.match_date} &bull; {matchDay.venue || 'No Venue'} &bull; {matchDay.overs_per_innings} overs
                 </p>
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 capitalize">
-                  <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-700 capitalize">
+                  <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse"></span>
                   {matchDay.status.replace('_', ' ')}
                 </div>
               </div>
@@ -163,7 +163,7 @@ export function AdminDashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="text-slate-500 py-6 text-center rounded-xl border border-dashed border-slate-700/50 bg-slate-800/30">
+          <div className="text-slate-500 py-6 text-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
             <p>No active match-day workflow.</p>
           </div>
         )}
@@ -172,34 +172,34 @@ export function AdminDashboardPage() {
       {/* 4. Manage Matches List */}
       <PagePanel title="Manage Matches">
         {matches.length === 0 ? (
-          <p className="text-slate-400 py-6 text-center">No matches created yet.</p>
+          <p className="text-slate-500 py-6 text-center">No matches created yet.</p>
         ) : (
           <div className="grid gap-4">
             {matches.map((match) => {
               const canEdit = ['draft', 'scheduled', 'teams_created'].includes(match.status);
               const canReset = ['toss_completed', 'in_progress', 'completed'].includes(match.status);
 
-              let badgeColor = 'bg-slate-700 text-slate-300';
-              if (match.status === 'scheduled') badgeColor = 'bg-blue-500/20 text-blue-300';
-              if (match.status === 'teams_created') badgeColor = 'bg-indigo-500/20 text-indigo-300';
-              if (match.status === 'toss_completed') badgeColor = 'bg-purple-500/20 text-purple-300';
-              if (match.status === 'in_progress') badgeColor = 'bg-amber-500/20 text-amber-300';
-              if (match.status === 'completed') badgeColor = 'bg-emerald-500/20 text-emerald-300';
-              if (match.status === 'abandoned') badgeColor = 'bg-red-500/20 text-red-300';
+              let badgeColor = 'bg-slate-100 text-slate-600';
+              if (match.status === 'scheduled') badgeColor = 'bg-blue-100 text-blue-700';
+              if (match.status === 'teams_created') badgeColor = 'bg-indigo-100 text-indigo-700';
+              if (match.status === 'toss_completed') badgeColor = 'bg-purple-100 text-purple-700';
+              if (match.status === 'in_progress') badgeColor = 'bg-amber-100 text-amber-700';
+              if (match.status === 'completed') badgeColor = 'bg-emerald-100 text-emerald-700';
+              if (match.status === 'abandoned') badgeColor = 'bg-red-100 text-red-700';
 
               return (
-                <article key={match.id} className="group rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 hover:border-slate-600/60 hover:bg-slate-800/80 transition-all duration-200 hover:shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <article key={match.id} className="group rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 transition-all duration-200 hover:shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-bold text-slate-100 text-base truncate group-hover:text-teal-400 transition-colors">{match.match_name}</h4>
+                      <h4 className="font-bold text-slate-800 text-base truncate group-hover:text-teal-600 transition-colors">{match.match_name}</h4>
                       <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${badgeColor}`}>
                         {match.status.replace('_', ' ')}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       {match.match_date} &bull; {match.venue || 'No Venue'} &bull; {match.overs_per_innings} overs &bull; {match.players_per_team} players
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-400">
                       {match.team_a_name} vs {match.team_b_name}
                     </p>
                   </div>
@@ -254,7 +254,7 @@ export function AdminDashboardPage() {
                       variant="secondary"
                       disabled={!canReset || resetMatch.isPending}
                       onClick={() => handleResetMatch(match.id, match.match_name)}
-                      className="flex-1 md:flex-none py-1.5 px-3 text-xs text-amber-400 hover:text-amber-300 disabled:text-slate-500"
+                      className="flex-1 md:flex-none py-1.5 px-3 text-xs text-amber-600 hover:text-amber-700 disabled:text-slate-400"
                     >
                       Reset
                     </Button>

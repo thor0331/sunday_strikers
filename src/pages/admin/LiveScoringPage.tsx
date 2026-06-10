@@ -11,13 +11,17 @@ import {
   useStartSuperOver
 } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
-import { useBallEvents, useCreateBallEvent, useUndoLastBall } from '../../hooks/useBallEvents';
+import {   useBallEvents, useCreateBallEvent, useUndoLastBall
+} from '../../hooks/useBallEvents';
+import { useSetMatchInProgress } from '../../hooks/useMatches';
+import { emitScoreEvent } from '../../components/common/ScoreAnimation';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import type { BallEvent, TeamSide, ExtraType, WicketType } from '../../types/models';
 import { supabase } from '../../services/supabaseClient';
 import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Undo2, RotateCcw, Skull, ChevronLeft, Target, Gauge, TrendingUp, Zap, Trophy } from 'lucide-react';
+import { WinPredictor } from '../../components/common/WinPredictor';
 
 // Helper to determine batting order dynamically
 export function determineBattingOrder(
@@ -75,6 +79,7 @@ export function LiveScoringPage() {
   const updateInnings = useUpdateInnings();
   const completeMatch = useCompleteMatch();
   const startSuperOver = useStartSuperOver();
+  const setMatchInProgress = useSetMatchInProgress();
   const createBallEvent = useCreateBallEvent();
   const undoLastBall = useUndoLastBall();
 
@@ -249,6 +254,11 @@ export function LiveScoringPage() {
       }
     });
 
+    // Also set match status to in_progress so public pages see live score
+    if (match?.status !== 'in_progress') {
+      await setMatchInProgress.mutateAsync(matchId);
+    }
+
     setCurrentBowlerId(openingBowlerId);
   }
 
@@ -287,6 +297,8 @@ export function LiveScoringPage() {
         targetRuns: activeInnings.target_runs
       }
     });
+
+    emitScoreEvent('runs', `+${runsBatter}`);
   }
 
   // Log an Extra ball
@@ -384,6 +396,8 @@ export function LiveScoringPage() {
         targetRuns: activeInnings.target_runs
       }
     });
+
+    emitScoreEvent('wicket', 'WICKET');
 
     setShowWicketForm(false);
     setWicketType('bowled');
@@ -618,7 +632,7 @@ export function LiveScoringPage() {
 
   if (matchError || !match) {
     return (
-      <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 max-w-lg mx-auto mt-8 text-center">
+      <div className="p-6 rounded-xl bg-red-50 border border-red-200 text-red-700 max-w-lg mx-auto mt-8 text-center">
         <p className="font-semibold text-lg">Unable to load match scoring data.</p>
       </div>
     );
@@ -631,16 +645,16 @@ export function LiveScoringPage() {
     const isTie = match.winner === null && !match.is_super_over;
     return (
       <div className="space-y-6 max-w-lg mx-auto">
-        <div className="rounded-xl bg-gradient-to-b from-teal-500/20 to-teal-500/5 border border-teal-500/30 p-6 text-center">
+        <div className="rounded-xl bg-gradient-to-b from-teal-50 to-white border border-teal-200 p-6 text-center">
           <div className="flex justify-center mb-3">
-            <div className="h-12 w-12 rounded-full bg-teal-500/20 flex items-center justify-center">
-              <Trophy className="w-6 h-6 text-teal-400" />
+            <div className="h-12 w-12 rounded-full bg-teal-100 flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-teal-600" />
             </div>
           </div>
-          <h2 className="text-xl font-bold text-slate-100">{match.match_name}</h2>
-          <p className="text-sm text-slate-400 mt-1">{match.team_a_name} vs {match.team_b_name}</p>
-          <div className="mt-4 rounded-lg bg-teal-500/10 border border-teal-500/20 p-3">
-            <p className="text-lg font-bold text-teal-300">{match.result_text || 'Match Completed'}</p>
+          <h2 className="text-xl font-bold text-slate-800">{match.match_name}</h2>
+          <p className="text-sm text-slate-500 mt-1">{match.team_a_name} vs {match.team_b_name}</p>
+          <div className="mt-4 rounded-lg bg-teal-50 border border-teal-200 p-3">
+            <p className="text-lg font-bold text-teal-700">{match.result_text || 'Match Completed'}</p>
           </div>
           <div className="mt-5">
             <Button onClick={() => navigate('/admin')}>Return to Dashboard</Button>
@@ -650,7 +664,7 @@ export function LiveScoringPage() {
         {isTie ? (
           <PagePanel title="Super Over Required">
             <form className="grid gap-4" onSubmit={createSuperOver}>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-500">
                 This match ended in a tie. You can start a Super Over to determine the winner.
               </p>
               <TextField
@@ -674,7 +688,7 @@ export function LiveScoringPage() {
       <div className="max-w-lg mx-auto space-y-4">
         <PagePanel title="Toss Required">
           <div className="grid gap-4 text-center py-4">
-            <p className="text-slate-300">You must conduct the toss before scoring can begin.</p>
+            <p className="text-slate-700">You must conduct the toss before scoring can begin.</p>
             <p className="text-sm text-slate-500">
               Go to the Toss page to record the toss winner and their batting decision.
             </p>
@@ -690,7 +704,7 @@ export function LiveScoringPage() {
   // If no active innings, something went wrong
   if (!activeInnings) {
     return (
-      <div className="p-6 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 max-w-lg mx-auto text-center">
+      <div className="p-6 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 max-w-lg mx-auto text-center">
         <p className="font-semibold text-lg">Innings Not Found</p>
         <p className="text-sm mt-1">Active innings could not be determined. Please contact admin.</p>
       </div>
@@ -706,22 +720,22 @@ export function LiveScoringPage() {
       <main className="max-w-md mx-auto space-y-4">
         <button
           onClick={() => navigate('/admin')}
-          className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-200 font-medium transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
         >
           <ChevronLeft className="w-4 h-4" /> Back to Dashboard
         </button>
         <PagePanel title={`Innings ${activeInnings.innings_number} - Setup`}>
           <div className="mb-4 space-y-2">
-            <h3 className="font-semibold text-slate-100 text-lg">
+            <h3 className="font-semibold text-slate-800 text-lg">
               {battingTeamName} is batting{activeInnings.innings_number === 2 ? ' second' : ' first'}
             </h3>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-500">
               Configure the opening batsmen and opening bowler to start scoring.
             </p>
             {activeInnings.target_runs ? (
-              <div className="mt-3 rounded-lg bg-teal-500/10 border border-teal-500/20 p-3 text-center">
+              <div className="mt-3 rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
                 <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Target</span>
-                <p className="text-xl font-bold text-teal-400">{activeInnings.target_runs} runs</p>
+                <p className="text-xl font-bold text-teal-700">{activeInnings.target_runs} runs</p>
               </div>
             ) : null}
           </div>
@@ -835,16 +849,16 @@ export function LiveScoringPage() {
 
       {/* 2.2 Innings Complete Notification Banner */}
       {inningsState?.isCompleted ? (
-        <section className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-5 text-center space-y-4">
+        <section className="rounded-xl bg-amber-50 border border-amber-200 p-5 text-center space-y-4">
           <div>
             <div className="flex justify-center mb-2">
-              <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <RotateCcw className="w-5 h-5 text-amber-400" />
+              <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <RotateCcw className="w-5 h-5 text-amber-600" />
               </div>
             </div>
-            <h3 className="font-bold text-amber-300 text-lg">Innings Complete!</h3>
-            <p className="text-sm text-slate-400 mt-1">
-              {battingTeamName} scored <strong className="text-slate-200">{inningsState.totalRuns}/{inningsState.wickets}</strong> in {inningsState.oversDisplay} overs
+            <h3 className="font-bold text-amber-700 text-lg">Innings Complete!</h3>
+            <p className="text-sm text-slate-500 mt-1">
+              {battingTeamName} scored <strong className="text-slate-800">{inningsState.totalRuns}/{inningsState.wickets}</strong> in {inningsState.oversDisplay} overs
             </p>
           </div>
           {activeInnings.innings_number === 1 ? (
@@ -863,7 +877,7 @@ export function LiveScoringPage() {
       </label>
 
       <select
-        className="w-full rounded-lg border border-slate-600 bg-slate-700 px-3 py-2.5 text-slate-100 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
         value={playerOfMatchId}
         onChange={(e) => setPlayerOfMatchId(e.target.value)}
       >
@@ -892,20 +906,20 @@ export function LiveScoringPage() {
 
       {/* 2.3 Batsmen crease stats section */}
       {!inningsState?.isCompleted && inningsState && (
-        <section className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 space-y-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-300 border-b border-slate-700/50 pb-2">Batting</h3>
+        <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b border-slate-200 pb-2">Batting</h3>
           <div className="grid grid-cols-2 gap-3">
             {/* Striker batsman */}
-            <div className="rounded-lg bg-gradient-to-br from-teal-500/20 to-teal-500/5 border border-teal-500/20 p-3.5">
+            <div className="rounded-lg bg-gradient-to-br from-teal-50 to-white border border-teal-200 p-3.5">
               <div className="flex items-start gap-2 mb-3">
-                <span className="text-teal-400 font-bold text-lg leading-none mt-0.5">*</span>
+                <span className="text-teal-600 font-bold text-lg leading-none mt-0.5">*</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-100 truncate">
+                  <p className="text-sm font-semibold text-slate-800 truncate">
                     {inningsState.strikerId ? playerMap.get(inningsState.strikerId) : 'No Striker'}
                   </p>
                   {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId]?.balls === 0 && (
                     <select
-                      className="text-xs bg-slate-700 border border-slate-600 rounded px-1 mt-1.5 w-full text-slate-200 outline-none focus:border-teal-500"
+                      className="text-xs bg-white border border-slate-300 rounded px-1 mt-1.5 w-full text-slate-700 outline-none focus:border-teal-500"
                       value={inningsState.strikerId}
                       onChange={(e) => setIncomingBatsmanId(e.target.value)}
                     >
@@ -922,24 +936,24 @@ export function LiveScoringPage() {
               {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId] ? (
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-teal-400/60 uppercase font-bold tracking-wider text-[10px]">Runs</p>
-                    <p className="text-xl font-bold text-teal-300">{inningsState.battingStats[inningsState.strikerId].runs}</p>
+                    <p className="text-teal-600/60 uppercase font-bold tracking-wider text-[10px]">Runs</p>
+                    <p className="text-xl font-bold text-teal-700">{inningsState.battingStats[inningsState.strikerId].runs}</p>
                   </div>
                   <div>
-                    <p className="text-teal-400/60 uppercase font-bold tracking-wider text-[10px]">Balls</p>
-                    <p className="text-xl font-bold text-teal-300">{inningsState.battingStats[inningsState.strikerId].balls}</p>
+                    <p className="text-teal-600/60 uppercase font-bold tracking-wider text-[10px]">Balls</p>
+                    <p className="text-xl font-bold text-teal-700">{inningsState.battingStats[inningsState.strikerId].balls}</p>
                   </div>
                   <div>
-                    <p className="text-teal-400/60 uppercase font-bold tracking-wider text-[10px]">4s</p>
-                    <p className="font-bold text-teal-300">{inningsState.battingStats[inningsState.strikerId].fours}</p>
+                    <p className="text-teal-600/60 uppercase font-bold tracking-wider text-[10px]">4s</p>
+                    <p className="font-bold text-teal-700">{inningsState.battingStats[inningsState.strikerId].fours}</p>
                   </div>
                   <div>
-                    <p className="text-teal-400/60 uppercase font-bold tracking-wider text-[10px]">6s</p>
-                    <p className="font-bold text-teal-300">{inningsState.battingStats[inningsState.strikerId].sixes}</p>
+                    <p className="text-teal-600/60 uppercase font-bold tracking-wider text-[10px]">6s</p>
+                    <p className="font-bold text-teal-700">{inningsState.battingStats[inningsState.strikerId].sixes}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-teal-400/60 uppercase font-bold tracking-wider text-[10px]">SR</p>
-                    <p className="font-bold text-teal-300">{inningsState.battingStats[inningsState.strikerId].strikeRate.toFixed(1)}</p>
+                    <p className="text-teal-600/60 uppercase font-bold tracking-wider text-[10px]">SR</p>
+                    <p className="font-bold text-teal-700">{inningsState.battingStats[inningsState.strikerId].strikeRate.toFixed(1)}</p>
                   </div>
                 </div>
               ) : (
@@ -948,15 +962,15 @@ export function LiveScoringPage() {
             </div>
 
             {/* Non-Striker batsman */}
-            <div className="rounded-lg bg-gradient-to-br from-slate-700/50 to-slate-800/50 border border-slate-600/30 p-3.5">
+            <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-3.5">
               <div className="flex items-start gap-2 mb-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-300 truncate">
+                  <p className="text-sm font-semibold text-slate-700 truncate">
                     {inningsState.nonStrikerId ? playerMap.get(inningsState.nonStrikerId) : 'No Non-Striker'}
                   </p>
                   {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId]?.balls === 0 && (
                     <select
-                      className="text-xs bg-slate-700 border border-slate-600 rounded px-1 mt-1.5 w-full text-slate-200 outline-none focus:border-teal-500"
+                      className="text-xs bg-white border border-slate-300 rounded px-1 mt-1.5 w-full text-slate-700 outline-none focus:border-teal-500"
                       value={inningsState.nonStrikerId}
                       onChange={(e) => setIncomingBatsmanId(e.target.value)}
                     >
@@ -974,23 +988,23 @@ export function LiveScoringPage() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <p className="text-slate-500 uppercase font-bold tracking-wider text-[10px]">Runs</p>
-                    <p className="text-xl font-bold text-slate-200">{inningsState.battingStats[inningsState.nonStrikerId].runs}</p>
+                    <p className="text-xl font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].runs}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 uppercase font-bold tracking-wider text-[10px]">Balls</p>
-                    <p className="text-xl font-bold text-slate-200">{inningsState.battingStats[inningsState.nonStrikerId].balls}</p>
+                    <p className="text-xl font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].balls}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 uppercase font-bold tracking-wider text-[10px]">4s</p>
-                    <p className="font-bold text-slate-200">{inningsState.battingStats[inningsState.nonStrikerId].fours}</p>
+                    <p className="font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].fours}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 uppercase font-bold tracking-wider text-[10px]">6s</p>
-                    <p className="font-bold text-slate-200">{inningsState.battingStats[inningsState.nonStrikerId].sixes}</p>
+                    <p className="font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].sixes}</p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-slate-500 uppercase font-bold tracking-wider text-[10px]">SR</p>
-                    <p className="font-bold text-slate-200">{inningsState.battingStats[inningsState.nonStrikerId].strikeRate.toFixed(1)}</p>
+                    <p className="font-bold text-slate-700">{inningsState.battingStats[inningsState.nonStrikerId].strikeRate.toFixed(1)}</p>
                   </div>
                 </div>
               ) : (
@@ -1003,39 +1017,39 @@ export function LiveScoringPage() {
 
       {/* 2.4 Bowler crease stats section */}
       {!inningsState?.isCompleted && inningsState && (
-        <section className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 space-y-3 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-300 border-b border-slate-700/50 pb-2">Bowling</h3>
+        <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b border-slate-200 pb-2">Bowling</h3>
           {currentBowlerId && inningsState.bowlingStats[currentBowlerId] ? (
-            <div className="rounded-lg bg-gradient-to-br from-red-500/15 to-red-500/5 border border-red-500/20 p-3.5">
-              <p className="text-sm font-semibold text-slate-100 mb-3 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse"></span>
+            <div className="rounded-lg bg-gradient-to-br from-red-50 to-white border border-red-200 p-3.5">
+              <p className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse"></span>
                 {playerMap.get(currentBowlerId)}
               </p>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <p className="text-red-400/60 uppercase font-bold tracking-wider text-[10px]">Overs</p>
-                  <p className="text-lg font-bold text-red-300">{inningsState.bowlingStats[currentBowlerId].oversDisplay}</p>
+                  <p className="text-red-600/60 uppercase font-bold tracking-wider text-[10px]">Overs</p>
+                  <p className="text-lg font-bold text-red-700">{inningsState.bowlingStats[currentBowlerId].oversDisplay}</p>
                 </div>
                 <div>
-                  <p className="text-red-400/60 uppercase font-bold tracking-wider text-[10px]">M</p>
-                  <p className="text-lg font-bold text-red-300">{inningsState.bowlingStats[currentBowlerId].maidens}</p>
+                  <p className="text-red-600/60 uppercase font-bold tracking-wider text-[10px]">M</p>
+                  <p className="text-lg font-bold text-red-700">{inningsState.bowlingStats[currentBowlerId].maidens}</p>
                 </div>
                 <div>
-                  <p className="text-red-400/60 uppercase font-bold tracking-wider text-[10px]">Runs</p>
-                  <p className="text-lg font-bold text-red-300">{inningsState.bowlingStats[currentBowlerId].runsConceded}</p>
+                  <p className="text-red-600/60 uppercase font-bold tracking-wider text-[10px]">Runs</p>
+                  <p className="text-lg font-bold text-red-700">{inningsState.bowlingStats[currentBowlerId].runsConceded}</p>
                 </div>
                 <div>
-                  <p className="text-red-400/60 uppercase font-bold tracking-wider text-[10px]">W</p>
-                  <p className="text-lg font-bold text-red-300">{inningsState.bowlingStats[currentBowlerId].wickets}</p>
+                  <p className="text-red-600/60 uppercase font-bold tracking-wider text-[10px]">W</p>
+                  <p className="text-lg font-bold text-red-700">{inningsState.bowlingStats[currentBowlerId].wickets}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-red-400/60 uppercase font-bold tracking-wider text-[10px]">Eco</p>
-                  <p className="text-lg font-bold text-red-300">{inningsState.bowlingStats[currentBowlerId].economy.toFixed(1)}</p>
+                  <p className="text-red-600/60 uppercase font-bold tracking-wider text-[10px]">Eco</p>
+                  <p className="text-lg font-bold text-red-700">{inningsState.bowlingStats[currentBowlerId].economy.toFixed(1)}</p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="rounded-lg bg-slate-700/30 border border-slate-600/30 p-4 text-center">
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">
               <p className="text-sm text-slate-500 font-semibold">Select Bowler</p>
             </div>
           )}
@@ -1044,39 +1058,49 @@ export function LiveScoringPage() {
 
       {/* 2.4b Match Statistics Panel */}
       {!inningsState?.isCompleted && inningsState && activeInnings?.target_runs && (
-        <section className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 space-y-3 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-300 border-b border-slate-700/50 pb-2">Chase</h3>
+        <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 border-b border-slate-200 pb-2">Chase</h3>
           <div className="grid grid-cols-2 gap-2.5 text-sm">
-            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5 text-center">
-              <p className="text-[10px] text-amber-400/60 uppercase font-bold tracking-wider">Target</p>
-              <p className="text-lg font-bold text-amber-300">{activeInnings.target_runs}</p>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-center">
+              <p className="text-[10px] text-amber-600/60 uppercase font-bold tracking-wider">Target</p>
+              <p className="text-lg font-bold text-amber-700">{activeInnings.target_runs}</p>
             </div>
-            <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-center">
-              <p className="text-[10px] text-emerald-400/60 uppercase font-bold tracking-wider">Required</p>
-              <p className="text-lg font-bold text-emerald-300">{inningsState.runsRequired ?? '-'}</p>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-center">
+              <p className="text-[10px] text-emerald-600/60 uppercase font-bold tracking-wider">Required</p>
+              <p className="text-lg font-bold text-emerald-700">{inningsState.runsRequired ?? '-'}</p>
             </div>
-            <div className="rounded-lg bg-sky-500/10 border border-sky-500/20 p-2.5 text-center">
-              <p className="text-[10px] text-sky-400/60 uppercase font-bold tracking-wider">Balls Left</p>
-              <p className="text-lg font-bold text-sky-300">{inningsState.ballsRemaining ?? '-'}</p>
+            <div className="rounded-lg bg-sky-50 border border-sky-200 p-2.5 text-center">
+              <p className="text-[10px] text-sky-600/60 uppercase font-bold tracking-wider">Balls Left</p>
+              <p className="text-lg font-bold text-sky-700">{inningsState.ballsRemaining ?? '-'}</p>
             </div>
-            <div className="rounded-lg bg-teal-500/10 border border-teal-500/20 p-2.5 text-center">
-              <p className="text-[10px] text-teal-400/60 uppercase font-bold tracking-wider">RRR</p>
-              <p className="text-lg font-bold text-teal-300">{inningsState.requiredRunRate?.toFixed(1) ?? '-'}</p>
+            <div className="rounded-lg bg-teal-50 border border-teal-200 p-2.5 text-center">
+              <p className="text-[10px] text-teal-600/60 uppercase font-bold tracking-wider">RRR</p>
+              <p className="text-lg font-bold text-teal-700">{inningsState.requiredRunRate?.toFixed(1) ?? '-'}</p>
             </div>
-            <div className="rounded-lg bg-purple-500/10 border border-purple-500/20 p-2.5 text-center col-span-2">
-              <p className="text-[10px] text-purple-400/60 uppercase font-bold tracking-wider">CRR</p>
-              <p className="text-lg font-bold text-purple-300">{inningsState.currentRunRate.toFixed(1)}</p>
+            <div className="rounded-lg bg-purple-50 border border-purple-200 p-2.5 text-center col-span-2">
+              <p className="text-[10px] text-purple-600/60 uppercase font-bold tracking-wider">CRR</p>
+              <p className="text-lg font-bold text-purple-700">{inningsState.currentRunRate.toFixed(1)}</p>
             </div>
           </div>
+          <WinPredictor
+            targetRuns={activeInnings.target_runs}
+            currentRuns={inningsState.totalRuns}
+            wicketsLost={inningsState.wickets}
+            totalWickets={match.players_per_team}
+            oversUsed={inningsState.legalBalls}
+            totalOvers={match.overs_per_innings}
+            battingTeamName={battingTeamName}
+            bowlingTeamName={bowlingTeamName}
+          />
         </section>
       )}
       {/* 2.5 Console Control Action Area */}
       {!inningsState?.isCompleted && inningsState && (
-        <section className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           {/* A. WICKET FORM OVERLAY */}
           {showWicketForm ? (
             <form onSubmit={handleLogWicket} className="grid gap-3">
-              <h3 className="font-bold text-red-400 text-sm border-b border-slate-700/50 pb-2 flex items-center gap-2">
+              <h3 className="font-bold text-red-600 text-sm border-b border-slate-200 pb-2 flex items-center gap-2">
                 <Skull className="w-4 h-4" /> Log Wicket
               </h3>
 
@@ -1182,7 +1206,7 @@ export function LiveScoringPage() {
           ) : showExtraForm ? (
             /* B. EXTRA FORM OVERLAY */
             <form onSubmit={handleLogExtra} className="grid gap-3">
-              <h3 className="font-bold text-teal-400 text-sm border-b border-slate-700/50 pb-2">
+              <h3 className="font-bold text-teal-600 text-sm border-b border-slate-200 pb-2">
                 Log Extra - {selectedExtraType === 'wide' ? 'Wide' : selectedExtraType === 'no_ball' ? 'No Ball' : selectedExtraType === 'bye' ? 'Bye' : 'Leg Bye'}
               </h3>
 
@@ -1230,16 +1254,16 @@ export function LiveScoringPage() {
             </form>
           ) : needsBowlerSelection ? (
             /* C. BOWLER CHANGE CARD (blocks other scoring buttons) */
-            <div className="grid gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-center">
+            <div className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
               <div className="flex justify-center">
-                <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                  <RotateCcw className="w-5 h-5 text-amber-400" />
+                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-amber-600" />
                 </div>
               </div>
-              <h4 className="font-bold text-amber-300 text-sm">
+              <h4 className="font-bold text-amber-700 text-sm">
                 {isOverComplete ? 'Over Complete!' : 'Bowler Required'}
               </h4>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {isOverComplete ? 'Select a different bowler for the next over.' : 'Select the bowler to start scoring.'}
               </p>
               <SelectField
@@ -1266,24 +1290,34 @@ export function LiveScoringPage() {
               <div>
                 <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Runs</h4>
                 <div className="grid grid-cols-3 gap-2">
-                  {[0, 1, 2, 3, 4, 6].map((runs) => (
-                    <button
-                      key={runs}
-                      type="button"
-                      onClick={() => handleLogBall(runs as any)}
-                      className="min-h-12 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-extrabold text-lg border border-slate-600/50 flex items-center justify-center transition-all duration-150 active:scale-95 active:bg-slate-500 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-                      disabled={createBallEvent.isPending}
-                    >
-                      {runs}
-                    </button>
-                  ))}
+                  {([0, 1, 2, 3, 4, 6] as const).map((runs) => {
+                    const colorMap: Record<number, string> = {
+                      0: 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200',
+                      1: 'bg-teal-100 hover:bg-teal-200 text-teal-700 border-teal-200',
+                      2: 'bg-teal-100 hover:bg-teal-200 text-teal-700 border-teal-200',
+                      3: 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-200',
+                      4: 'bg-green-100 hover:bg-green-200 text-green-700 border-green-200',
+                      6: 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-200'
+                    };
+                    return (
+                      <button
+                        key={runs}
+                        type="button"
+                        onClick={() => handleLogBall(runs)}
+                        className={`min-h-12 rounded-lg font-extrabold text-lg border flex items-center justify-center transition-all duration-150 active:scale-95 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${colorMap[runs]}`}
+                        disabled={createBallEvent.isPending}
+                      >
+                        {runs}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Extras buttons panel */}
               <div>
                 <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Extras</h4>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {(['wide', 'no_ball', 'bye', 'leg_bye'] as ExtraType[]).map((type) => (
                     <button
                       key={type}
@@ -1294,7 +1328,7 @@ export function LiveScoringPage() {
                         setExtraRunsBatter('0');
                         setShowExtraForm(true);
                       }}
-                      className="min-h-11 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-sm font-bold border border-teal-500/20 transition-all duration-150 active:scale-95 capitalize flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                      className="min-h-11 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-bold border border-purple-200 transition-all duration-150 active:scale-95 capitalize flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                       disabled={createBallEvent.isPending}
                     >
                       {type === 'no_ball' ? 'No Ball' : type === 'leg_bye' ? 'Leg Bye' : type}
@@ -1304,11 +1338,11 @@ export function LiveScoringPage() {
               </div>
 
               {/* Action buttons panel */}
-              <div className="grid grid-cols-2 gap-3 border-t border-slate-700/50 pt-3">
+              <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowWicketForm(true)}
-                  className="min-h-12 rounded-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold shadow-sm transition-all duration-150 active:scale-[0.97] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="min-h-12 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white font-bold shadow-sm transition-all duration-150 active:scale-[0.97] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                   disabled={createBallEvent.isPending}
                 >
                   <Skull className="w-4 h-4" /> Wicket
@@ -1316,7 +1350,7 @@ export function LiveScoringPage() {
                 <button
                   type="button"
                   onClick={handleUndo}
-                  className="min-h-12 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold shadow-sm transition-all duration-150 active:scale-[0.97] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="min-h-12 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 font-semibold shadow-sm transition-all duration-150 active:scale-[0.97] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                   disabled={undoLastBall.isPending || ballEvents.length === 0}
                 >
                   <Undo2 className="w-4 h-4" /> Undo
