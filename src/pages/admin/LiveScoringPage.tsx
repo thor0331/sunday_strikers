@@ -713,6 +713,8 @@ export function LiveScoringPage() {
 
   const battingTeamName = activeInnings.batting_team === 'team_a' ? match.team_a_name : match.team_b_name;
   const bowlingTeamName = activeInnings.bowling_team === 'team_a' ? match.team_a_name : match.team_b_name;
+  const matchFormat = (match.match_format as 'short_boundary' | 'long_boundary') || 'short_boundary';
+  const isShortBoundary = matchFormat === 'short_boundary';
 
   // 1. INNINGS NOT STARTED STATE
   if (activeInnings.status === 'not_started') {
@@ -810,11 +812,16 @@ export function LiveScoringPage() {
               </span>
             </div>
           </div>
-          <div className="text-right shrink-0">
+          <div className="text-right shrink-0 space-y-1">
             <span className="text-xs text-teal-400 font-semibold block uppercase tracking-wide">
               {match.match_name}
             </span>
-            <span className="text-xs text-slate-500">
+            <span className={`inline-block rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border ${
+              isShortBoundary ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+            }`}>
+              🏏 {isShortBoundary ? 'SHORT BOUNDARY' : 'LONG BOUNDARY'}
+            </span>
+            <span className="text-xs text-slate-500 block">
               vs {bowlingTeamName}
             </span>
           </div>
@@ -1290,27 +1297,32 @@ export function LiveScoringPage() {
               <div>
                 <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Runs</h4>
                 <div className="grid grid-cols-3 gap-2">
-                  {([0, 1, 2, 3, 4, 6] as const).map((runs) => {
-                    const colorMap: Record<number, string> = {
-                      0: 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200',
-                      1: 'bg-teal-100 hover:bg-teal-200 text-teal-700 border-teal-200',
-                      2: 'bg-teal-100 hover:bg-teal-200 text-teal-700 border-teal-200',
-                      3: 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-200',
-                      4: 'bg-green-100 hover:bg-green-200 text-green-700 border-green-200',
-                      6: 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-200'
-                    };
-                    return (
-                      <button
-                        key={runs}
-                        type="button"
-                        onClick={() => handleLogBall(runs)}
-                        className={`min-h-12 rounded-lg font-extrabold text-lg border flex items-center justify-center transition-all duration-150 active:scale-95 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${colorMap[runs]}`}
-                        disabled={createBallEvent.isPending}
-                      >
-                        {runs}
-                      </button>
-                    );
-                  })}
+                  {([0, 1, 2, 3, 4] as const).map((runs) => (
+                    <button
+                      key={runs}
+                      type="button"
+                      onClick={() => handleLogBall(runs)}
+                      className={`min-h-12 rounded-lg font-extrabold text-lg border flex items-center justify-center transition-all duration-150 active:scale-95 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${
+                        runs === 0 ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200' :
+                        runs === 1 || runs === 2 ? 'bg-teal-100 hover:bg-teal-200 text-teal-700 border-teal-200' :
+                        runs === 3 ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-200' :
+                        'bg-green-100 hover:bg-green-200 text-green-700 border-green-200'
+                      }`}
+                      disabled={createBallEvent.isPending}
+                    >
+                      {runs}
+                    </button>
+                  ))}
+                  {!isShortBoundary && (
+                    <button
+                      type="button"
+                      onClick={() => handleLogBall(6)}
+                      className="min-h-12 rounded-lg font-extrabold text-lg border flex items-center justify-center transition-all duration-150 active:scale-95 shadow-sm hover:shadow bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                      disabled={createBallEvent.isPending}
+                    >
+                      6
+                    </button>
+                  )}
                 </div>
               </div>
 

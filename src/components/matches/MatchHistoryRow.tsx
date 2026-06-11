@@ -1,6 +1,7 @@
 import type { MatchHistoryItem } from '../../types/models';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Calendar, MapPin } from 'lucide-react';
+import { MatchFormatBadge } from '../common/MatchFormatBadge';
 
 interface MatchHistoryRowProps {
   item: MatchHistoryItem;
@@ -28,9 +29,12 @@ export function MatchHistoryRow({ item }: MatchHistoryRowProps) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-slate-800 text-base truncate group-hover:text-teal-600 transition-colors">
-            {item.match.match_name}
-          </h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-bold text-slate-800 text-base truncate group-hover:text-teal-600 transition-colors">
+              {item.match.match_name}
+            </h3>
+            <MatchFormatBadge format={item.match.match_format} />
+          </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1">
               <Calendar className="w-3 h-3" />

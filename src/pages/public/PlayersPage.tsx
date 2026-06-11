@@ -57,7 +57,22 @@ function PlayerCard({ player, stats, potmCounts, avatarViewer }: {
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">{player.batting_style || 'Batter'} • {player.bowling_style || 'Bowler'}</p>
+          {player.batting_style || player.bowling_style ? (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {player.batting_style && (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700 border border-teal-200">
+                  🏏 {player.batting_style}
+                </span>
+              )}
+              {player.bowling_style && (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 border border-red-200">
+                  🎯 {player.bowling_style}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 mt-0.5">Batter • Bowler</p>
+          )}
           {stats && (
             <div className="flex items-center gap-3 mt-1.5">
               <MiniStat label="Runs" value={stats.runs} color="text-teal-600" />

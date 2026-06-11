@@ -10,6 +10,7 @@ import { GlassCard } from '../../components/common/GlassCard';
 import { EmptyState } from '../../components/common/EmptyState';
 import { MomentumGraph } from '../../components/common/MomentumGraph';
 import { MatchHeroes } from '../../components/common/MatchHeroes';
+import { MatchFormatBadge } from '../../components/common/MatchFormatBadge';
 
 function MatchCard({ matchId }: { matchId: string }) {
   const { data: match } = useMatch(matchId);
@@ -79,6 +80,7 @@ function MatchCard({ matchId }: { matchId: string }) {
           {!isLive && !isCompleted && (
             <span className="text-[10px] font-semibold text-slate-400 uppercase">{match.status.replace('_', ' ')}</span>
           )}
+          <div className="mt-2"><MatchFormatBadge format={match.match_format} /></div>
         </div>
         <p className="font-bold text-slate-800 truncate text-base group-hover:text-teal-600 transition-colors">{match.match_name}</p>
         <div className="flex items-center gap-2 mt-1 text-sm text-slate-600 min-w-0">

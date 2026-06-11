@@ -9,6 +9,7 @@ export type ExtraType = Database['public']['Enums']['extra_type'];
 export type WicketType = Database['public']['Enums']['wicket_type'];
 export type AvailabilityStatus = Database['public']['Enums']['availability_status'];
 export type AwardType = Database['public']['Enums']['award_type'];
+export type MatchFormat = 'short_boundary' | 'long_boundary';
 
 export type GroupSettings = Database['public']['Tables']['group_settings']['Row'];
 export type Season = Database['public']['Tables']['seasons']['Row'];

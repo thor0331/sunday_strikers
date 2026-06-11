@@ -5,13 +5,20 @@ import { useBallEvents } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import { useParams } from 'react-router-dom';
 import { useMemo } from 'react';
-import { Share2, Swords } from 'lucide-react';
+import { Share2, TrendingUp, Target, Gauge, ChevronLeft, Zap } from 'lucide-react';
 import { MatchHeroes } from '../../components/common/MatchHeroes';
 import { MomentumGraph } from '../../components/common/MomentumGraph';
 import { MatchTimeline } from '../../components/common/MatchTimeline';
 import { EmptyState } from '../../components/common/EmptyState';
 import { shareMatchResult } from '../../services/shareService';
 import { computeHeadToHead } from '../../utils/analytics';
+import { CurrentBatsmenCard } from '../../components/common/CurrentBatsmenCard';
+import { CurrentBowlerCard } from '../../components/common/CurrentBowlerCard';
+import { MatchSituationCard } from '../../components/common/MatchSituationCard';
+import { LastOverTracker } from '../../components/common/LastOverTracker';
+import { PartnershipCard } from '../../components/common/PartnershipCard';
+import { LiveCommentary } from '../../components/common/LiveCommentary';
+import { MatchFormatBadge } from '../../components/common/MatchFormatBadge';
 
 export function MatchSummaryPage() {
   const { matchId = '' } = useParams();
@@ -88,6 +95,44 @@ export function MatchSummaryPage() {
     }
   }, [innings2, match, ballEvents2, matchPlayers]);
 
+  const isLive = match?.status === 'in_progress';
+
+  // Determine active innings for live matches
+  const activeInnings = useMemo(() => {
+    if (!isLive) return null;
+    return inningsList.find(i => i.status === 'in_progress') ?? null;
+  }, [inningsList, isLive]);
+
+  // Get ball events for active innings
+  const { data: activeBallEvents = [] } = useBallEvents(activeInnings?.id ?? null);
+
+  // Calculate innings state for active innings with proper context
+  const activeInningsState = useMemo(() => {
+    if (!activeInnings || !match) return null;
+    if (activeBallEvents.length === 0) return null;
+
+    const batting = matchPlayers.filter(mp => mp.team === activeInnings.batting_team);
+    const battingOrder = batting.map(mp => mp.player_id);
+    const firstEvent = [...activeBallEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
+    if (!firstEvent) return null;
+
+    const context: ScoringContext = {
+      inningsId: activeInnings.id,
+      openingStrikerId: firstEvent.strikerId,
+      openingNonStrikerId: firstEvent.nonStrikerId,
+      battingOrder,
+      oversPerInnings: match.overs_per_innings,
+      playersPerTeam: match.players_per_team,
+      targetRuns: activeInnings.target_runs,
+    };
+
+    try {
+      return calculateInningsState(context, activeBallEvents);
+    } catch {
+      return null;
+    }
+  }, [activeInnings, match, activeBallEvents, matchPlayers]);
+
   const isLoading = matchLoading || inningsLoading || playersLoading;
 
   if (isLoading) {
@@ -126,16 +171,15 @@ export function MatchSummaryPage() {
     );
   }
 
-  const isLive = match.status === 'in_progress';
-
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Match Header */}
       <PagePanel title="Match Summary">
         <div className="space-y-4">
           <div className="text-center space-y-2">
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-3 flex-wrap">
               <h2 className="text-2xl font-bold text-slate-800">{match.match_name}</h2>
+              <MatchFormatBadge format={match.match_format} />
               {isLive && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-red-500" />
@@ -204,6 +248,75 @@ export function MatchSummaryPage() {
           </div>
         </div>
       </PagePanel>
+
+      {/* Live Scoreboard (in-progress only) */}
+      {isLive && activeInningsState && (
+        <div className="space-y-3 animate-fade-in">
+          {/* Compact Score Header */}
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-xl p-4 shadow-lg border border-slate-700/50">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  {activeInnings?.innings_number === 1 ? '1st Innings' : '2nd Innings'}
+                </p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-3xl font-extrabold tracking-tight text-white">
+                    {activeInningsState.totalRuns}<span className="text-slate-400 font-bold">/{activeInningsState.wickets}</span>
+                  </span>
+                  <span className="text-slate-400 text-xs font-medium">
+                    ({activeInningsState.oversDisplay} ov)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {activeInnings?.batting_team === 'team_a' ? match.team_a_name : match.team_b_name}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 px-2.5 py-1 text-[10px] font-bold text-red-300 border border-red-500/30 animate-live-pulse">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
+                  LIVE
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <CurrentBatsmenCard
+            inningsState={activeInningsState}
+            playerMap={playerMap}
+            playerPhotoMap={playerPhotoMap}
+            battingTeamName={activeInnings?.batting_team === 'team_a' ? match.team_a_name : match.team_b_name}
+          />
+
+          <CurrentBowlerCard
+            inningsState={activeInningsState}
+            playerMap={playerMap}
+            playerPhotoMap={playerPhotoMap}
+            bowlingTeamName={activeInnings?.bowling_team === 'team_a' ? match.team_a_name : match.team_b_name}
+          />
+
+          <MatchSituationCard
+            inningsState={activeInningsState}
+            targetRuns={activeInnings?.target_runs ?? null}
+            oversPerInnings={match.overs_per_innings}
+          />
+
+          <PartnershipCard
+            ballEvents={activeBallEvents}
+            strikerId={activeInningsState.strikerId}
+            nonStrikerId={activeInningsState.nonStrikerId}
+          />
+
+          <LastOverTracker
+            ballEvents={activeBallEvents}
+            legalBalls={activeInningsState.legalBalls}
+          />
+
+          <LiveCommentary
+            ballEvents={activeBallEvents}
+            playerMap={playerMap}
+          />
+        </div>
+      )}
 
       {/* Match Heroes (completed only) */}
       {!isLive && (

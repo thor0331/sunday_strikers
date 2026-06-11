@@ -7,6 +7,7 @@ import { usePlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMemo, useState, type FormEvent, useEffect } from 'react';
+import type { MatchFormat } from '../../types/models';
 
 export function MatchCreationPage() {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export function MatchCreationPage() {
   const [teamACaptainId, setTeamACaptainId] = useState('');
   const [teamBCaptainId, setTeamBCaptainId] = useState('');
   const [notes, setNotes] = useState('');
+  const [matchFormat, setMatchFormat] = useState<MatchFormat>('short_boundary');
 
   useEffect(() => {
     if (match) {
@@ -46,6 +48,7 @@ export function MatchCreationPage() {
       setTeamACaptainId(match.team_a_captain_id || '');
       setTeamBCaptainId(match.team_b_captain_id || '');
       setNotes(match.notes || '');
+      setMatchFormat((match.match_format as MatchFormat) || 'short_boundary');
     }
   }, [match]);
 
@@ -68,6 +71,7 @@ export function MatchCreationPage() {
       team_a_captain_id: teamACaptainId || null,
       team_b_captain_id: teamBCaptainId || null,
       notes: notes.trim() || null,
+      match_format: matchFormat,
       status: match ? match.status : (teamACaptainId && teamBCaptainId ? 'scheduled' : 'draft')
     };
 
@@ -187,6 +191,59 @@ export function MatchCreationPage() {
             </option>
           ))}
         </SelectField>
+        <div className="space-y-2.5">
+          <label className="text-xs font-semibold text-slate-600">Match Format</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              disabled={isStarted}
+              onClick={() => setMatchFormat('short_boundary')}
+              className={`rounded-xl border-2 p-3.5 text-left transition-all duration-200 ${
+                matchFormat === 'short_boundary'
+                  ? 'border-teal-500 bg-teal-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              } ${isStarted ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                  matchFormat === 'short_boundary' ? 'border-teal-500' : 'border-slate-300'
+                }`}>
+                  {matchFormat === 'short_boundary' && <div className="h-2 w-2 rounded-full bg-teal-500" />}
+                </div>
+                <span className="font-semibold text-sm text-slate-800">Short Boundary Cricket</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 ml-6">
+                • Maximum score per ball = 4<br />
+                • No Free Hit
+              </p>
+            </button>
+            <button
+              type="button"
+              disabled={isStarted}
+              onClick={() => setMatchFormat('long_boundary')}
+              className={`rounded-xl border-2 p-3.5 text-left transition-all duration-200 ${
+                matchFormat === 'long_boundary'
+                  ? 'border-teal-500 bg-teal-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              } ${isStarted ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                  matchFormat === 'long_boundary' ? 'border-teal-500' : 'border-slate-300'
+                }`}>
+                  {matchFormat === 'long_boundary' && <div className="h-2 w-2 rounded-full bg-teal-500" />}
+                </div>
+                <span className="font-semibold text-sm text-slate-800">Long Boundary Cricket</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 ml-6">
+                • Standard cricket rules<br />
+                • 6s allowed<br />
+                • Free Hit enabled
+              </p>
+            </button>
+          </div>
+        </div>
+
         <TextAreaField
           label="Notes"
           value={notes}

@@ -17,7 +17,12 @@ const formConfig = {
   needs_improvement: { label: 'Needs Improvement', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-400' },
 };
 
-function PlayerDashboard({ playerId, playerName, photoUrl }: { playerId: string; playerName: string; photoUrl: string | null }) {
+function PlayerDashboard({ playerId, playerName, photoUrl, player }: {
+  playerId: string;
+  playerName: string;
+  photoUrl: string | null;
+  player: import('../../types/models').Player;
+}) {
   const { data: allStats = [] } = usePlayerStatistics();
   const { data: matches = [] } = useParentMatches();
   const { data: availabilityMatches = [] } = useAvailabilityMatches();
@@ -67,6 +72,20 @@ function PlayerDashboard({ playerId, playerName, photoUrl }: { playerId: string;
               <span className={`h-1.5 w-1.5 rounded-full ${form.dot}`} />
               {stats ? form.label : 'No Stats'}
             </span>
+            {(player.batting_style || player.bowling_style) && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {player.batting_style && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700 border border-teal-200">
+                    🏏 {player.batting_style}
+                  </span>
+                )}
+                {player.bowling_style && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 border border-red-200">
+                    🎯 {player.bowling_style}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -175,6 +194,7 @@ export function MyDashboardPage() {
           playerId={selectedPlayer.id}
           playerName={selectedPlayer.display_name}
           photoUrl={selectedPlayer.photo_url}
+          player={selectedPlayer}
         />
       )}
     </div>
