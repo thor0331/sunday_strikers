@@ -2,20 +2,21 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
 import { SelectField, TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
-import { useAvailabilityMatches, useMatchAvailability, useSetAvailability } from '../../hooks/useAvailability';
+import { useAvailabilityMatches, useMatchAvailability, useSetAvailability, useAllAvailability } from '../../hooks/useAvailability';
 import { useParentMatches } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
-import type { AvailabilityStatus } from '../../types/models';
+import type { AvailabilityStatus, Match } from '../../types/models';
 import { useMemo, useState, type FormEvent } from 'react';
 import { CircularAvatar } from '../../components/common/CircularAvatar';
 import { computeAttendanceRate } from '../../utils/analytics';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
-import { BarChart3, TrendingUp } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Minus, Flame, Medal } from 'lucide-react';
 
 export function AvailabilityPage() {
   const { data: matches = [], isLoading: matchesLoading } = useAvailabilityMatches();
   const { data: allMatches = [] } = useParentMatches();
   const { data: players = [] } = usePlayers();
+  const { data: allAvailability = [] } = useAllAvailability();
   const avatarViewer = useAvatarViewerStore();
   const [matchId, setMatchId] = useState('');
   const [playerId, setPlayerId] = useState('');
@@ -27,23 +28,45 @@ export function AvailabilityPage() {
   const activePlayers = useMemo(() => players.filter((player) => player.status === 'active'), [players]);
   const availabilityByPlayer = useMemo(() => new Map(availability.map((item) => [item.player_id, item])), [availability]);
 
+  // All availability indexed by match_id for fast lookup
+  const allAvailabilityByMatch = useMemo(() => {
+    const map = new Map<string, Map<string, { status: AvailabilityStatus; note: string | null }>>();
+    for (const item of allAvailability) {
+      if (!map.has(item.match_id)) map.set(item.match_id, new Map());
+      map.get(item.match_id)!.set(item.player_id, { status: item.status, note: item.note });
+    }
+    return map;
+  }, [allAvailability]);
+
+  const sortedMatches = useMemo(() => [...allMatches].filter(m => m.status === 'completed').sort((a, b) => a.match_date.localeCompare(b.match_date)), [allMatches]);
+
   // Compute availability leaderboard across all matches
   const leaderboard = useMemo(() => {
-    const completedMatches = allMatches.filter(m => m.status === 'completed');
+    const completedMatches = sortedMatches;
     if (completedMatches.length === 0) return [];
-    // For each active player, compute how many matches they were available
-    const playerScores: { playerId: string; name: string; photo: string | null; total: number; available: number; pct: number }[] = [];
+    const playerScores: {
+      playerId: string; name: string; photo: string | null; total: number; available: number; pct: number;
+      streak: number; recentPct: number; prevPct: number; trend: 'up' | 'down' | 'stable';
+    }[] = [];
     for (const player of activePlayers) {
       let available = 0;
       let total = 0;
+      let streak = 0;
+      const recentAvail: boolean[] = [];
       for (const match of completedMatches) {
-        const av = availability.find(a => a.player_id === player.id && a.match_id === match.id);
+        const av = allAvailabilityByMatch.get(match.id)?.get(player.id);
         if (av) {
           total++;
-          if (av.status === 'available') available++;
+          if (av.status === 'available') { available++; streak++; } else { streak = 0; }
+          recentAvail.push(av.status === 'available');
         }
       }
       if (total > 0) {
+        const recent5 = recentAvail.slice(-5);
+        const prev5 = recentAvail.slice(-10, -5);
+        const recentPct = recent5.length > 0 ? Math.round((recent5.filter(Boolean).length / recent5.length) * 100) : 0;
+        const prevPct = prev5.length > 0 ? Math.round((prev5.filter(Boolean).length / prev5.length) * 100) : 0;
+        const trend = recentPct > prevPct ? 'up' : recentPct < prevPct ? 'down' : 'stable';
         playerScores.push({
           playerId: player.id,
           name: player.display_name,
@@ -51,11 +74,15 @@ export function AvailabilityPage() {
           total,
           available,
           pct: computeAttendanceRate(total, available),
+          streak,
+          recentPct,
+          prevPct,
+          trend,
         });
       }
     }
     return playerScores.sort((a, b) => b.pct - a.pct).slice(0, 10);
-  }, [allMatches, activePlayers, availability]);
+  }, [sortedMatches, activePlayers, allAvailabilityByMatch]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -142,22 +169,35 @@ export function AvailabilityPage() {
         <PagePanel title="Availability Leaderboard">
           <p className="text-[10px] text-slate-500 -mt-2 mb-3">Top 10 players by attendance rate</p>
           <div className="space-y-2">
-            {leaderboard.map((entry, i) => (
-              <div key={entry.playerId} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-teal-300 transition-colors">
-                <span className="w-5 text-center text-xs font-bold text-slate-400 shrink-0">#{i + 1}</span>
-                <CircularAvatar src={entry.photo} alt={entry.name} size="sm" onClick={entry.photo ? () => avatarViewer.open(entry.photo!, entry.name) : undefined} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{entry.name}</p>
-                  <p className="text-[10px] text-slate-400">{entry.available}/{entry.total} matches</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-teal-600">{entry.pct}%</p>
-                  <div className="mt-1 h-1.5 w-16 rounded-full bg-slate-100 ml-auto overflow-hidden">
-                    <div className="h-full rounded-full bg-teal-500" style={{ width: `${entry.pct}%` }} />
+            {leaderboard.map((entry, i) => {
+              const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+              return (
+                <div key={entry.playerId} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-teal-300 transition-colors">
+                  <span className="w-6 text-center text-xs font-bold shrink-0">{rankIcon}</span>
+                  <CircularAvatar src={entry.photo} alt={entry.name} size="sm" onClick={entry.photo ? () => avatarViewer.open(entry.photo!, entry.name) : undefined} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{entry.name}</p>
+                    <p className="text-[10px] text-slate-400">{entry.available}/{entry.total} matches</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {entry.streak >= 3 && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-orange-600">
+                          <Flame className="w-3 h-3" />{entry.streak}
+                        </span>
+                      )}
+                      {entry.trend === 'up' && <TrendingUp className="w-3 h-3 text-emerald-500" />}
+                      {entry.trend === 'down' && <TrendingDown className="w-3 h-3 text-red-400" />}
+                      {entry.trend === 'stable' && <Minus className="w-3 h-3 text-slate-300" />}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-teal-600">{entry.pct}%</p>
+                    <div className="mt-1 h-1.5 w-16 rounded-full bg-slate-100 ml-auto overflow-hidden">
+                      <div className="h-full rounded-full bg-teal-500" style={{ width: `${entry.pct}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </PagePanel>
       )}

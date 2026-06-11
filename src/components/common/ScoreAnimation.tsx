@@ -32,22 +32,23 @@ export function ScoreAnimation() {
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-      {events.map(event => (
+      {events.map((event, index) => (
         <div
           key={event.id}
           onAnimationEnd={() => removeEvent(event.id)}
           className={event.type === 'wicket' ? 'animate-wicket-impact' : 'animate-score-pop'}
           style={{
             position: 'absolute',
-            top: '35%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: event.type === 'wicket' ? '2.5rem' : '2rem',
+            top: `${35 + index * 8}%`,
+            left: `${45 + index * 5}%`,
+            fontSize: event.type === 'wicket' ? '3rem' : event.value === '+6' ? '2.5rem' : '2rem',
             fontWeight: 900,
             fontFamily: 'ui-sans-serif, system-ui, sans-serif',
             textShadow: event.type === 'wicket'
-              ? '0 0 20px rgba(239, 68, 68, 0.6), 0 0 60px rgba(239, 68, 68, 0.3)'
-              : '0 0 20px rgba(20, 184, 166, 0.5)',
+              ? '0 0 30px rgba(239, 68, 68, 0.8), 0 0 80px rgba(239, 68, 68, 0.3)'
+              : event.value === '+6'
+                ? '0 0 30px rgba(20, 184, 166, 0.8), 0 0 60px rgba(20, 184, 166, 0.3)'
+                : '0 0 20px rgba(20, 184, 166, 0.5)',
             color: event.type === 'wicket' ? '#ef4444' : '#0d9488',
             letterSpacing: '0.05em'
           }}

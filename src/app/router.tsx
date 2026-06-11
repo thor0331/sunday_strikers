@@ -9,8 +9,10 @@ import { LiveScoringPage } from '../pages/admin/LiveScoringPage';
 import { MatchCreationPage } from '../pages/admin/MatchCreationPage';
 import { PlayerManagementPage } from '../pages/admin/PlayerManagementPage';
 import { SeasonManagementPage } from '../pages/admin/SeasonManagementPage';
+import { SiteContentPage } from '../pages/admin/SiteContentPage';
 import { TossPage } from '../pages/admin/TossPage';
 import { TeamFormationPage } from '../pages/admin/TeamFormationPage';
+import { AboutPage } from '../pages/public/AboutPage';
 import { AvailabilityPage } from '../pages/public/AvailabilityPage';
 import { DashboardPage } from '../pages/public/DashboardPage';
 import { HallOfFamePage } from '../pages/public/HallOfFamePage';
@@ -43,7 +45,8 @@ export const router = createBrowserRouter([
       { path: '/awards', element: <SeasonAwardsPage /> },
       { path: '/hall-of-fame', element: <HallOfFamePage /> },
       { path: '/records', element: <ClubRecordsPage /> },
-      { path: '/season-summary', element: <SeasonSummaryPage /> }
+      { path: '/season-summary', element: <SeasonSummaryPage /> },
+      { path: '/about', element: <AboutPage /> }
     ]
   },
   { path: '/admin/login', element: <AdminLoginPage /> },
@@ -62,7 +65,8 @@ export const router = createBrowserRouter([
           { path: 'matches/:matchId/teams', element: <TeamFormationPage /> },
           { path: 'matches/:matchId/toss', element: <TossPage /> },
           { path: 'matches/:matchId/scoring', element: <LiveScoringPage /> },
-          { path: 'matches/:matchId/details', element: <AdminMatchDetailsPage /> }
+          { path: 'matches/:matchId/details', element: <AdminMatchDetailsPage /> },
+          { path: 'content', element: <SiteContentPage /> }
         ]
       }
     ]

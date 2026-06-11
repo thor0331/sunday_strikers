@@ -10,8 +10,8 @@ export type MatchPlayerInsert = Database['public']['Tables']['match_players']['I
 export interface TeamAssignment {
   playerId: string;
   team: TeamSide;
-  battingOrder?: number | null;
-  isCaptain?: boolean;
+  battingOrder: number;
+  isCaptain: boolean;
 }
 
 export interface TossInput {
@@ -135,11 +135,14 @@ export const matchRepository = {
       status: 'toss_completed'
     });
 
+    const battingTeam: Database['public']['Enums']['innings_side'] = battingFirst;
+    const bowlingTeam: Database['public']['Enums']['innings_side'] = bowlingFirst;
+
     const firstInnings = {
       match_id: matchId,
       innings_number: 1,
-      batting_team: battingFirst,
-      bowling_team: bowlingFirst,
+      batting_team: battingTeam,
+      bowling_team: bowlingTeam,
       status: 'not_started' as const,
       target_runs: null
     };
@@ -147,8 +150,8 @@ export const matchRepository = {
     const secondInnings = {
       match_id: matchId,
       innings_number: 2,
-      batting_team: bowlingFirst,
-      bowling_team: battingFirst,
+      batting_team: bowlingTeam,
+      bowling_team: battingTeam,
       status: 'not_started' as const,
       target_runs: null
     };

@@ -22,6 +22,11 @@ export const availabilityRepository = {
     return requireData(data, error);
   },
 
+  async listAll() {
+    const { data, error } = await supabase.from('availability').select('*');
+    return requireData(data, error);
+  },
+
   async setStatus(matchId: string, playerId: string, status: AvailabilityStatus, note?: string | null) {
     const { data, error } = await supabase
       .from('availability')

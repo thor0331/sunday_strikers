@@ -101,6 +101,30 @@ notes?: string | null;
         Update: Partial<Database['public']['Tables']['player_statistics']['Insert']>;
         Relationships: [];
       };
+      app_content: {
+        Row: {
+          id: string;
+          key: string;
+          title: string;
+          content: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          title?: string;
+          content?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          title?: string;
+          content?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: { is_admin: { Args: Record<PropertyKey, never>; Returns: boolean } };

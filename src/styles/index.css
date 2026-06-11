@@ -128,8 +128,74 @@ textarea {
   box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
 }
 
+/* ===== Glass Card Variants ===== */
+.glass-premium {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* ===== Score Animation Enhancements ===== */
+@keyframes scorePopLarge {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  40% { opacity: 1; transform: translateY(-40px) scale(1.6); }
+  100% { opacity: 0; transform: translateY(-100px) scale(1.2); }
+}
+.animate-score-pop-large {
+  animation: scorePopLarge 1.2s ease-out forwards;
+}
+
+/* ===== Live Card Pulse Ring ===== */
+.live-ring {
+  animation: liveRing 2s ease-in-out infinite;
+}
+@keyframes liveRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+/* ===== Slide Up + Fade ===== */
+@keyframes slideUpFade {
+  0% { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up-fade {
+  animation: slideUpFade 0.5s ease-out forwards;
+}
+
+/* ===== Premium Hover ===== */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* ===== Number Ticker ===== */
+@keyframes tickerPop {
+  0% { opacity: 1; transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-ticker {
+  animation: tickerPop 0.3s ease-out;
+}
+
 /* ===== Scrollbar Styling ===== */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+
+/* ===== Mobile friendly tap targets ===== */
+@media (max-width: 640px) {
+  .min-tap { min-height: 44px; min-width: 44px; }
+}
+
+/* ===== Smooth number transition ===== */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

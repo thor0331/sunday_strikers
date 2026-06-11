@@ -5,16 +5,54 @@ import { useBallEvents } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Trophy, Zap, ChevronRight, Play, CheckCircle, Clock } from 'lucide-react';
+import { Calendar, MapPin, Trophy, Zap, ChevronRight, Play, CheckCircle, Clock, Target } from 'lucide-react';
 import { GlassCard } from '../../components/common/GlassCard';
 import { EmptyState } from '../../components/common/EmptyState';
 import { MomentumGraph } from '../../components/common/MomentumGraph';
+import { MatchHeroes } from '../../components/common/MatchHeroes';
 
 function MatchCard({ matchId }: { matchId: string }) {
   const { data: match } = useMatch(matchId);
   const { data: inningsList = [] } = useInnings(matchId);
+  const { data: matchPlayers = [] } = useMatchPlayers(matchId);
+  const { data: players = [] } = usePlayers();
   const { data: ballEvents1 = [] } = useBallEvents(inningsList.find(i => i.innings_number === 1)?.id ?? null);
   const { data: ballEvents2 = [] } = useBallEvents(inningsList.find(i => i.innings_number === 2)?.id ?? null);
+
+  const playerMap = useMemo(() => new Map(players.map(p => [p.id, p.display_name])), [players]);
+  const playerPhotoMap = useMemo(() => new Map(players.map(p => [p.id, p.photo_url])), [players]);
+
+  const innings1Stats = useMemo(() => {
+    const innings1 = inningsList.find(i => i.innings_number === 1);
+    if (!innings1 || !match) return null;
+    const batting = matchPlayers.filter(mp => mp.team === innings1.batting_team);
+    const battingOrder = batting.map(mp => mp.player_id);
+    const striker = battingOrder[0];
+    const nonStriker = battingOrder[1];
+    if (!striker || !nonStriker) return null;
+    const ctx: ScoringContext = {
+      inningsId: innings1.id, openingStrikerId: striker, openingNonStrikerId: nonStriker,
+      battingOrder, oversPerInnings: match.overs_per_innings,
+      playersPerTeam: match.players_per_team, targetRuns: null,
+    };
+    try { return calculateInningsState(ctx, ballEvents1); } catch { return null; }
+  }, [inningsList, match, matchPlayers, ballEvents1]);
+
+  const innings2Stats = useMemo(() => {
+    const innings2 = inningsList.find(i => i.innings_number === 2);
+    if (!innings2 || !match) return null;
+    const batting = matchPlayers.filter(mp => mp.team === innings2.batting_team);
+    const battingOrder = batting.map(mp => mp.player_id);
+    const striker = battingOrder[0];
+    const nonStriker = battingOrder[1];
+    if (!striker || !nonStriker) return null;
+    const ctx: ScoringContext = {
+      inningsId: innings2.id, openingStrikerId: striker, openingNonStrikerId: nonStriker,
+      battingOrder, oversPerInnings: match.overs_per_innings,
+      playersPerTeam: match.players_per_team, targetRuns: innings2.target_runs,
+    };
+    try { return calculateInningsState(ctx, ballEvents2); } catch { return null; }
+  }, [inningsList, match, matchPlayers, ballEvents2]);
 
   if (!match) return null;
 
@@ -22,92 +60,49 @@ function MatchCard({ matchId }: { matchId: string }) {
   const isCompleted = match.status === 'completed';
 
   return (
-    <Link to={`/matches/${match.id}`} className="block">
-      <GlassCard variant="light" hover className={`p-4 ${isLive ? 'border-l-4 border-l-red-500' : ''}`}>
+    <Link to={`/matches/${match.id}`} className="block group">
+      <GlassCard variant="light" hover className={`p-4 ${isLive ? 'border-l-4 border-l-red-500 live-ring' : ''}`}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-slate-400">{match.match_date}</span>
           {isLive && (
             <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-[10px] font-bold text-red-600 border border-red-200 animate-live-pulse">
               <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-              LIVE
+              🔴 LIVE
             </span>
           )}
-          {isCompleted && <Trophy className="w-3.5 h-3.5 text-amber-400" />}
+          {isCompleted && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Completed
+            </span>
+          )}
           {!isLive && !isCompleted && (
             <span className="text-[10px] font-semibold text-slate-400 uppercase">{match.status.replace('_', ' ')}</span>
           )}
         </div>
-        <p className="font-bold text-slate-800 truncate text-base">{match.match_name}</p>
-        <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
-          <span className="font-medium">{match.team_a_name}</span>
-          <span className="font-bold text-slate-300">vs</span>
-          <span className="font-medium">{match.team_b_name}</span>
+        <p className="font-bold text-slate-800 truncate text-base group-hover:text-teal-600 transition-colors">{match.match_name}</p>
+        <div className="flex items-center gap-2 mt-1 text-sm text-slate-600 min-w-0">
+          <span className="font-medium truncate min-w-0">{match.team_a_name}</span>
+          <span className="font-bold text-slate-300 shrink-0">vs</span>
+          <span className="font-medium truncate min-w-0">{match.team_b_name}</span>
         </div>
+        {match.result_text && isCompleted && (
+          <p className="text-xs text-teal-600 font-semibold mt-1.5">{match.result_text}</p>
+        )}
         {match.venue && (
           <p className="text-xs text-slate-400 mt-1.5 inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{match.venue}</p>
         )}
 
-        {/* Mini Momentum Graph for completed/live matches with data */}
-        {isCompleted && (ballEvents1.length > 0 || ballEvents2.length > 0) && (
+        {/* Match Heroes for completed matches */}
+        {isCompleted && match.player_of_match_id && (
           <div className="mt-3 pt-3 border-t border-slate-100">
-            <div className="flex gap-3">
-              {ballEvents1.length > 0 && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-1 tracking-wider">
-                    {match.team_a_name}
-                  </p>
-                  <div className="flex items-end gap-0.5 h-8">
-                    {Array.from({ length: Math.min(6, inningsList.find(i => i.innings_number === 1) ? 6 : 1) }, (_, i) => {
-                      const overs = new Map<number, number>();
-                      for (const event of ballEvents1) {
-                        overs.set(event.overNumber, (overs.get(event.overNumber) ?? 0) + event.runsBatter + event.runsExtra);
-                      }
-                      const runs = overs.get(i) ?? 0;
-                      const maxRuns = Math.max(...Array.from(overs.values()), 1);
-                      return (
-                        <div
-                          key={i}
-                          className="flex-1 rounded-sm transition-all"
-                          style={{
-                            height: `${(runs / maxRuns) * 100}%`,
-                            backgroundColor: runs >= 6 ? '#059669' : runs >= 4 ? '#0d9488' : runs > 0 ? '#94a3b8' : '#e2e8f0',
-                            minHeight: '2px'
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {ballEvents2.length > 0 && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-1 tracking-wider">
-                    {match.team_b_name}
-                  </p>
-                  <div className="flex items-end gap-0.5 h-8">
-                    {Array.from({ length: Math.min(6, inningsList.find(i => i.innings_number === 2) ? 6 : 1) }, (_, i) => {
-                      const overs = new Map<number, number>();
-                      for (const event of ballEvents2) {
-                        overs.set(event.overNumber, (overs.get(event.overNumber) ?? 0) + event.runsBatter + event.runsExtra);
-                      }
-                      const runs = overs.get(i) ?? 0;
-                      const maxRuns = Math.max(...Array.from(overs.values()), 1);
-                      return (
-                        <div
-                          key={i}
-                          className="flex-1 rounded-sm transition-all"
-                          style={{
-                            height: `${(runs / maxRuns) * 100}%`,
-                            backgroundColor: runs >= 6 ? '#059669' : runs >= 4 ? '#0d9488' : runs > 0 ? '#94a3b8' : '#e2e8f0',
-                            minHeight: '2px'
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+            <MatchHeroes
+              match={match}
+              innings1Stats={innings1Stats}
+              innings2Stats={innings2Stats}
+              playerMap={playerMap}
+              playerPhotoMap={playerPhotoMap}
+            />
           </div>
         )}
       </GlassCard>
@@ -149,7 +144,7 @@ export function MatchCenterPage() {
           <button
             key={filter}
             onClick={() => setStatusFilter(filter)}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 btn-press ${
+            className={`shrink-0 rounded-full px-4 py-3 text-xs font-bold transition-all duration-200 btn-press min-h-[44px] ${
               statusFilter === filter
                 ? 'bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-md'
                 : 'glass text-slate-600 hover:bg-white/90'

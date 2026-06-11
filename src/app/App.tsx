@@ -3,6 +3,7 @@ import { AppProviders } from './providers';
 import { router } from './router';
 import { AvatarViewer } from '../components/common/AvatarViewer';
 import { ScoreAnimation } from '../components/common/ScoreAnimation';
+import { ToastContainer } from '../components/common/Toast';
 import { RealtimeProvider } from '../components/providers/RealtimeProvider';
 
 export function App() {
@@ -12,6 +13,7 @@ export function App() {
         <RouterProvider router={router} />
         <AvatarViewer />
         <ScoreAnimation />
+        <ToastContainer />
       </RealtimeProvider>
     </AppProviders>
   );

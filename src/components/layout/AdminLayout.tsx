@@ -6,7 +6,8 @@ const adminLinks = [
   { to: '/admin', label: 'Dashboard' },
   { to: '/admin/players', label: 'Players' },
   { to: '/admin/seasons', label: 'Seasons' },
-  { to: '/admin/matches/new', label: 'New Match' }
+  { to: '/admin/matches/new', label: 'New Match' },
+  { to: '/admin/content', label: 'Site Content' }
 ];
 
 export function AdminLayout() {

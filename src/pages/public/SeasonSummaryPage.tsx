@@ -1,10 +1,11 @@
 import { PagePanel } from '../../components/common/PagePanel';
 import { GlassCard } from '../../components/common/GlassCard';
+import { OrangeCapWidget, PurpleCapWidget } from '../../components/common/CapWidgets';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useParentMatches } from '../../hooks/useMatches';
 import { usePlayerStatistics } from '../../hooks/useStatistics';
 import { usePlayers } from '../../hooks/usePlayers';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Trophy, Target, Star, Activity, Shield, Users, BarChart3 } from 'lucide-react';
 
 export function SeasonSummaryPage() {
@@ -17,14 +18,21 @@ export function SeasonSummaryPage() {
   const season = seasons.find(s => s.id === selectedSeasonId);
   const activeSeason = seasons.find(s => s.is_active);
 
+  useEffect(() => {
+    if (!selectedSeasonId && activeSeason) {
+      setSelectedSeasonId(activeSeason.id);
+    }
+  }, [selectedSeasonId, activeSeason]);
+
+  const playerMap = useMemo(() => new Map(players.map(p => [p.id, p.display_name])), [players]);
+  const playerPhotoMap = useMemo(() => new Map(players.map(p => [p.id, p.photo_url])), [players]);
+
   const seasonMatches = useMemo(() => {
     if (!selectedSeasonId) return [];
     return matches.filter(m => m.season_id === selectedSeasonId);
   }, [matches, selectedSeasonId]);
 
   const completed = useMemo(() => seasonMatches.filter(m => m.status === 'completed'), [seasonMatches]);
-  const totalRuns = completed.reduce((s, m) => s + (m.result_text ? parseInt(m.result_text.match(/(\d+)/)?.[1] ?? '0', 10) : 0), 0);
-  const totalWickets = completed.reduce((s, m) => s + (m.result_text ? parseInt(m.result_text.match(/\d+/g)?.[1] ?? '0', 10) : 0), 0);
   const totalMatches = seasonMatches.length;
   const completedMatches = completed.length;
 
@@ -43,8 +51,6 @@ export function SeasonSummaryPage() {
     if (lastMatch.winner === 'team_b') return lastMatch.team_a_name;
     return null;
   }, [completed]);
-
-  const playerNames = useMemo(() => new Map(players.map(p => [p.id, p.display_name])), [players]);
 
   const stats = useMemo(() => {
     if (!selectedSeasonId) return null;
@@ -67,12 +73,8 @@ export function SeasonSummaryPage() {
       if (wins > bestTeamRecord.wins) bestTeamRecord = { name, wins };
     }
 
-    return { topRuns, topWickets, topPotm, bestTeamRecord, teamWins };
+    return { topRuns, topWickets, topPotm, bestTeamRecord, teamWins, filteredStats: filtered };
   }, [allStats, selectedSeasonId, completed]);
-
-  if (!selectedSeasonId && activeSeason) {
-    setSelectedSeasonId(activeSeason.id);
-  }
 
   return (
     <div className="space-y-4">
@@ -136,33 +138,13 @@ export function SeasonSummaryPage() {
               </GlassCard>
             </div>
 
+            {/* Orange Cap & Purple Cap Widgets */}
+            <div className="grid gap-3 sm:grid-cols-2 mb-4 stagger-enter">
+              <OrangeCapWidget stats={stats.filteredStats} playerMap={playerMap} playerPhotoMap={playerPhotoMap} />
+              <PurpleCapWidget stats={stats.filteredStats} playerMap={playerMap} playerPhotoMap={playerPhotoMap} />
+            </div>
+
             {/* Award Cards */}
-            {stats.topRuns && (
-              <GlassCard variant="light" className="p-4 mb-3 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg">
-                  <Target className="w-5 h-5 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600">Orange Cap</p>
-                  <p className="font-bold text-slate-800 truncate">{playerNames.get(stats.topRuns.player_id) ?? 'Unknown'}</p>
-                  <p className="text-sm text-orange-600 font-semibold">{stats.topRuns.runs} runs</p>
-                </div>
-              </GlassCard>
-            )}
-
-            {stats.topWickets && (
-              <GlassCard variant="light" className="p-4 mb-3 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg">
-                  <Star className="w-5 h-5 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600">Purple Cap</p>
-                  <p className="font-bold text-slate-800 truncate">{playerNames.get(stats.topWickets.player_id) ?? 'Unknown'}</p>
-                  <p className="text-sm text-purple-600 font-semibold">{stats.topWickets.wickets} wickets</p>
-                </div>
-              </GlassCard>
-            )}
-
             {stats.topPotm && (
               <GlassCard variant="light" className="p-4 mb-3 flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg">
@@ -170,7 +152,7 @@ export function SeasonSummaryPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Most POTM</p>
-                  <p className="font-bold text-slate-800 truncate">{playerNames.get(stats.topPotm[0]) ?? 'Unknown'}</p>
+                  <p className="font-bold text-slate-800 truncate">{playerMap.get(stats.topPotm[0]) ?? 'Unknown'}</p>
                   <p className="text-sm text-amber-600 font-semibold">{stats.topPotm[1]} awards</p>
                 </div>
               </GlassCard>

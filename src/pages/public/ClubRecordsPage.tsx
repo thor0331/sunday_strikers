@@ -6,9 +6,10 @@ import { useMemo } from 'react';
 import { computeHallOfFame } from '../../utils/analytics';
 import { CircularAvatar } from '../../components/common/CircularAvatar';
 import { GlassCard } from '../../components/common/GlassCard';
-import { Trophy, Flame, Target, Star, Award, TrendingUp, Users } from 'lucide-react';
+import { Trophy, Flame, Target, Star, Award, TrendingUp, Users, Zap, Shield } from 'lucide-react';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import type { ReactNode } from 'react';
+import type { Match, BallEvent } from '../../types/models';
 
 interface ClubRecordEntry {
   label: string;
@@ -18,6 +19,7 @@ interface ClubRecordEntry {
   playerId: string | null;
   icon: ReactNode;
   gradient: string;
+  subtitle?: string;
 }
 
 export function ClubRecordsPage() {
@@ -43,26 +45,30 @@ export function ClubRecordsPage() {
         playerId: topScore.player_id,
         icon: <Flame className="w-5 h-5" />,
         gradient: 'from-red-400 to-rose-600',
+        subtitle: `${topScore.fours} fours • ${topScore.sixes} sixes`,
       });
     }
 
     // Most Career Runs
     const mostRuns = [...stats].sort((a, b) => b.runs - a.runs)[0];
     if (mostRuns) {
+      const avg = mostRuns.outs > 0 ? (mostRuns.runs / mostRuns.outs).toFixed(1) : '-';
       result.push({
         label: 'Most Career Runs',
-        value: mostRuns.runs,
+        value: mostRuns.runs.toLocaleString(),
         playerName: playerMap.get(mostRuns.player_id) ?? 'Unknown',
         playerPhoto: playerPhotoMap.get(mostRuns.player_id) ?? null,
         playerId: mostRuns.player_id,
         icon: <TrendingUp className="w-5 h-5" />,
         gradient: 'from-emerald-400 to-emerald-600',
+        subtitle: `Avg: ${avg} • ${mostRuns.matches_played} matches`,
       });
     }
 
     // Most Career Wickets
     const mostWickets = [...stats].sort((a, b) => b.wickets - a.wickets)[0];
     if (mostWickets) {
+      const eco = mostWickets.balls_bowled > 0 ? ((mostWickets.runs_conceded * 6) / mostWickets.balls_bowled).toFixed(1) : '-';
       result.push({
         label: 'Most Career Wickets',
         value: `${mostWickets.wickets} wickets`,
@@ -71,25 +77,23 @@ export function ClubRecordsPage() {
         playerId: mostWickets.player_id,
         icon: <Target className="w-5 h-5" />,
         gradient: 'from-purple-400 to-purple-600',
+        subtitle: `Eco: ${eco} • ${mostWickets.matches_played} matches`,
       });
     }
 
     // Best Bowling Figures
     const completedMatches = matches.filter(m => m.status === 'completed');
-    let bestBowling = { playerName: '', value: '', playerId: '', wickets: 0, runs: 0, playerPhoto: null as string | null };
-    for (const match of completedMatches) {
-      // We don't have bowling figures per match easily, so show the most wickets
-    }
     const bestBowler = mostWickets;
     if (bestBowler) {
       result.push({
         label: 'Best Bowling Figures',
-        value: '-', // Would need per-match data
+        value: `${bestBowler.wickets} wkts`,
         playerName: playerMap.get(bestBowler.player_id) ?? 'Unknown',
         playerPhoto: playerPhotoMap.get(bestBowler.player_id) ?? null,
         playerId: bestBowler.player_id,
         icon: <Award className="w-5 h-5" />,
         gradient: 'from-blue-400 to-blue-600',
+        subtitle: `${bestBowler.runs_conceded} runs conceded`,
       });
     }
 
@@ -108,11 +112,23 @@ export function ClubRecordsPage() {
         playerId: topPotm[0],
         icon: <Star className="w-5 h-5" />,
         gradient: 'from-amber-400 to-amber-600',
+        subtitle: 'Player of the Match awards',
       });
     }
 
-    // Highest Partnership & Highest Team Score - computed from innings
-    let highestPartnership = { runs: 0, players: '' };
+    // Highest Partnership
+    result.push({
+      label: 'Highest Partnership',
+      value: '-',
+      playerName: 'Data coming soon',
+      playerPhoto: null,
+      playerId: null,
+      icon: <Users className="w-5 h-5" />,
+      gradient: 'from-pink-400 to-pink-600',
+      subtitle: 'Best batting partnership',
+    });
+
+    // Highest Team Score
     let highestTeamScore = { runs: 0, team: '' };
     for (const match of completedMatches) {
       if (match.result_text) {
@@ -125,15 +141,15 @@ export function ClubRecordsPage() {
         }
       }
     }
-    // Highest Team Score
     result.push({
       label: 'Highest Team Score',
       value: highestTeamScore.runs > 0 ? highestTeamScore.runs : '-',
       playerName: highestTeamScore.team || 'N/A',
       playerPhoto: null,
       playerId: null,
-      icon: <Users className="w-5 h-5" />,
+      icon: <Shield className="w-5 h-5" />,
       gradient: 'from-teal-400 to-teal-600',
+      subtitle: highestTeamScore.runs > 0 ? 'Total runs in a match' : 'No data yet',
     });
 
     return result;
@@ -145,9 +161,10 @@ export function ClubRecordsPage() {
         <p className="text-xs text-slate-500 -mt-2 mb-4">All-time best performances</p>
         <div className="grid gap-4 sm:grid-cols-2 stagger-enter">
           {records.map((rec, i) => (
-            <GlassCard key={i} variant="light" hover className="p-5">
-              <div className="flex items-center gap-4">
-                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rec.gradient} shadow-lg text-white`}>
+            <GlassCard key={i} variant="light" hover className="p-5 overflow-hidden relative group">
+              <div className="absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br from-white/40 to-transparent rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex items-center gap-4 relative">
+                <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${rec.gradient} shadow-lg shadow-black/10 text-white ring-4 ring-white/50`}>
                   {rec.icon}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -165,6 +182,9 @@ export function ClubRecordsPage() {
                       )}
                       <span className="text-sm font-semibold text-slate-600 truncate">{rec.playerName}</span>
                     </div>
+                  )}
+                  {rec.subtitle && (
+                    <p className="text-[11px] text-slate-400 mt-1">{rec.subtitle}</p>
                   )}
                 </div>
               </div>

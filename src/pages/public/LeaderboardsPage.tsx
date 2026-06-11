@@ -124,7 +124,7 @@ export function LeaderboardsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`tab-underline shrink-0 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold transition-colors ${
+            className={`tab-underline shrink-0 px-3 sm:px-4 py-3 text-xs sm:text-sm font-semibold transition-colors min-h-[44px] ${
               activeTab === tab.key
                 ? `active ${tab.color}`
                 : 'text-slate-500 hover:text-slate-700'

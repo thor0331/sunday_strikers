@@ -39,9 +39,9 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
     const ballEventsSub = supabase
       .channel('public:ball_events')
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'ball_events' },
+        { event: '*', schema: 'public', table: 'ball_events' },
         (payload) => {
-          const inningsId = payload.new?.innings_id as string | undefined;
+          const inningsId = (payload.new as Record<string, unknown> | null)?.innings_id as string | undefined;
           if (inningsId) {
             void queryClient.invalidateQueries({ queryKey: ['ball-events', inningsId] });
           }
@@ -49,6 +49,7 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
           void queryClient.invalidateQueries({ queryKey: ['match'] });
           void queryClient.invalidateQueries({ queryKey: ['matches'] });
           void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
+          void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
         }
       )
       .subscribe();

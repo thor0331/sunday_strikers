@@ -3,6 +3,7 @@ import { useParentMatches } from '../../hooks/useMatches';
 import { useMemo, useState } from 'react';
 import { computeHeadToHead, computeTeamStats } from '../../utils/analytics';
 import { Link } from 'react-router-dom';
+import { Trophy } from 'lucide-react';
 
 export function TeamComparisonPage() {
   const { data: matches = [] } = useParentMatches();
@@ -78,15 +79,34 @@ export function TeamComparisonPage() {
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-center">
                 <p className="text-xs font-bold uppercase tracking-wider text-teal-600">{teamA}</p>
-                <p className="text-3xl font-extrabold text-teal-700 mt-1">{statsA?.wins ?? 0}</p>
+                <p className="text-3xl font-extrabold text-teal-700 mt-1">{h2h.teamAWins}</p>
                 <p className="text-xs text-teal-600/70">Wins</p>
               </div>
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center">
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-600">{teamB}</p>
-                <p className="text-3xl font-extrabold text-blue-700 mt-1">{statsB?.wins ?? 0}</p>
+                <p className="text-3xl font-extrabold text-blue-700 mt-1">{h2h.teamBWins}</p>
                 <p className="text-xs text-blue-600/70">Wins</p>
               </div>
             </div>
+
+            {/* Win Percentage Bar */}
+            {h2h.matchesPlayed > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span className="font-semibold text-teal-600">{teamA}</span>
+                  <span className="font-semibold text-blue-600">{teamB}</span>
+                </div>
+                <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex">
+                  <div className="h-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all" style={{ width: `${h2h.teamAWinPercentage}%` }} />
+                  <div className="h-full bg-gradient-to-l from-blue-500 to-blue-400 transition-all" style={{ width: `${h2h.teamBWinPercentage}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                  <span>{h2h.teamAWinPercentage}%</span>
+                  <span>{h2h.matchesPlayed} matches</span>
+                  <span>{h2h.teamBWinPercentage}%</span>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-xl border border-slate-200 p-4 space-y-3">
               <h3 className="text-sm font-bold text-slate-700">Head to Head</h3>
@@ -108,15 +128,30 @@ export function TeamComparisonPage() {
                   <p className="text-[10px] text-slate-500 uppercase font-bold">Draws</p>
                 </div>
               </div>
+              {h2h.matchesPlayed > 0 && (
+                <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-3 text-center text-xs">
+                  <div>
+                    <p className="font-bold text-slate-800">{statsA?.highestScore ?? '-'}</p>
+                    <p className="text-[10px] text-slate-500">{teamA} Highest</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">{statsB?.highestScore ?? '-'}</p>
+                    <p className="text-[10px] text-slate-500">{teamB} Highest</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {recentMeetings.length > 0 && (
               <div className="space-y-2 mt-3">
-                <h3 className="text-sm font-bold text-slate-700">Recent Meetings</h3>
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-sm font-bold text-slate-700">Recent Meetings</h3>
+                </div>
                 {recentMeetings.map(m => {
                   const isTeamAWinner = (m.team_a_name === teamA && m.winner === 'team_a') || (m.team_b_name === teamA && m.winner === 'team_b');
                   return (
-                    <Link key={m.id} to={`/matches/${m.id}`} className="block rounded-lg border border-slate-200 p-3 hover:border-teal-300 transition-colors">
+                    <Link key={m.id} to={`/matches/${m.id}`} className="block rounded-lg border border-slate-200 p-3 hover:border-teal-300 transition-colors hover-lift">
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-slate-800 truncate">{m.match_name}</p>
@@ -126,6 +161,7 @@ export function TeamComparisonPage() {
                           {isTeamAWinner ? `${teamA} won` : `${teamB} won`}
                         </span>
                       </div>
+                      {m.result_text && <p className="text-[11px] text-slate-400 mt-1">{m.result_text}</p>}
                     </Link>
                   );
                 })}

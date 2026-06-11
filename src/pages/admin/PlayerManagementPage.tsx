@@ -2,7 +2,7 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
 import { SelectField, TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
-import { CircularAvatar } from '../../components/common/CircularAvatar';
+import { AvatarUpload } from '../../components/common/AvatarUpload';
 import { useCreatePlayer, useDeletePlayer, usePlayers, useUpdatePlayer, useUploadPlayerPhoto } from '../../hooks/usePlayers';
 import { usePlayerUiStore } from '../../stores/playerUiStore';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
@@ -95,21 +95,19 @@ export function PlayerManagementPage() {
           {players.map((player) => (
             <article key={player.id} className="grid gap-3 rounded-lg border border-slate-200 p-3">
               <div className="flex items-center gap-3">
-                <CircularAvatar src={player.photo_url} alt={player.display_name} size="lg" onClick={player.photo_url ? () => avatarViewer.open(player.photo_url!, player.display_name) : undefined} />
+                <AvatarUpload
+                  src={player.photo_url}
+                  alt={player.display_name}
+                  editable
+                  onUpload={(file) => uploadPhoto.mutateAsync({ playerId: player.id, file })}
+                  onDeletePhoto={() => updatePlayer.mutateAsync({ id: player.id, input: { photo_url: null } })}
+                  onView={player.photo_url ? () => avatarViewer.open(player.photo_url!, player.display_name) : undefined}
+                />
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-semibold">{player.display_name}</h3>
                   <p className="text-sm text-slate-500">{player.status}</p>
                 </div>
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                className="max-w-full text-sm"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void uploadPhoto.mutateAsync({ playerId: player.id, file });
-                }}
-              />
               <div className="flex gap-2">
                 <Button type="button" variant="secondary" onClick={() => setEditingPlayer(player)}>
                   Edit
@@ -121,7 +119,7 @@ export function PlayerManagementPage() {
             </article>
           ))}
         </div>
-        <MutationStatus error={deletePlayer.error || uploadPhoto.error} success={uploadPhoto.isSuccess ? 'Photo uploaded.' : null} />
+        <MutationStatus error={deletePlayer.error} />
       </PagePanel>
     </div>
   );

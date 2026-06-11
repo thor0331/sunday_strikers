@@ -10,13 +10,42 @@ import { GlassCard } from '../../components/common/GlassCard';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Trophy, Calendar, TrendingUp } from 'lucide-react';
-import { getTeamColors } from '../../utils/teamColors';
+import { ChevronRight, Trophy, Calendar, TrendingUp, Zap } from 'lucide-react';
 
-function InProgressDetection({ matches }: { matches: import('../../types/models').Match[] }) {
+function MatchStatusBanner({ matches }: { matches: import('../../types/models').Match[] }) {
   const liveMatch = matches.find(m => m.status === 'in_progress');
-  if (!liveMatch) return null;
-  return <LiveMatchBanner matchId={liveMatch.id} />;
+  const tossMatch = matches.find(m => m.status === 'toss_completed' && !matches.find(m2 => m2.status === 'in_progress'));
+  
+  if (liveMatch) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-xs font-bold uppercase tracking-wider text-red-700">🔴 Live Now</span>
+        </div>
+        <LiveMatchBanner matchId={liveMatch.id} />
+      </div>
+    );
+  }
+  
+  if (tossMatch) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="h-3 w-3 rounded-full bg-amber-400" />
+          <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Toss Completed</span>
+        </div>
+        <div className="glass rounded-2xl p-5 border border-amber-200/50">
+          <p className="font-bold text-slate-800 text-lg truncate">{tossMatch.match_name}</p>
+          <p className="text-sm text-slate-500">{tossMatch.match_date} • {tossMatch.venue || 'No venue'}</p>
+          <p className="text-sm text-amber-600 font-semibold mt-2">{tossMatch.team_a_name} vs {tossMatch.team_b_name}</p>
+          <p className="text-xs text-slate-400 mt-1">Scoring will begin shortly</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return null;
 }
 
 export function DashboardPage() {
@@ -27,7 +56,7 @@ export function DashboardPage() {
   const playerPhotoMap = useMemo(() => new Map(players.map(p => [p.id, p.photo_url])), [players]);
 
   const upcoming = useMemo(() =>
-    matches.filter((m) => ['draft', 'scheduled', 'teams_created', 'toss_completed'].includes(m.status)).slice(0, 3),
+    matches.filter((m) => ['draft', 'scheduled', 'teams_created'].includes(m.status)).slice(0, 3),
     [matches]
   );
   const completed = useMemo(() =>
@@ -45,8 +74,8 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Live Match Detection */}
-      <InProgressDetection matches={matches} />
+      {/* Match Status Banner - Live, Toss, or None */}
+      <MatchStatusBanner matches={matches} />
 
       {/* Player of the Week */}
       <PlayerOfTheWeek />
@@ -65,7 +94,7 @@ export function DashboardPage() {
               <Calendar className="w-4 h-4 text-slate-400" />
               <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wider">Upcoming</h2>
             </div>
-            {upcoming.length > 3 && (
+            {upcoming.length >= 3 && (
               <Link to="/matches" className="text-xs text-teal-600 hover:text-teal-700 font-semibold inline-flex items-center gap-0.5">
                 View all <ChevronRight className="w-3 h-3" />
               </Link>
@@ -104,13 +133,16 @@ export function DashboardPage() {
           ) : (
             <div className="grid gap-2 stagger-enter">
               {completed.map((match) => (
-                <Link key={match.id} to={`/matches/${match.id}`}>
+                <Link key={match.id} to={`/matches/${match.id}`} className="block group">
                   <GlassCard variant="light" hover className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-semibold text-slate-400">{match.match_date}</span>
-                      <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Completed
+                      </span>
                     </div>
-                    <p className="font-bold text-slate-800 truncate">{match.match_name}</p>
+                    <p className="font-bold text-slate-800 truncate group-hover:text-teal-600 transition-colors">{match.match_name}</p>
                     <p className="text-sm text-teal-600 font-medium mt-1">{match.result_text || 'Result recorded'}</p>
                   </GlassCard>
                 </Link>

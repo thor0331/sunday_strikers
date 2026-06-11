@@ -3,7 +3,7 @@ import { useBallEvents } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gauge } from 'lucide-react';
+import { TrendingUp, Gauge, Target, Zap } from 'lucide-react';
 import { getTeamColors, type TeamSide } from '../../utils/teamColors';
 import { GlassCard } from './GlassCard';
 
@@ -18,7 +18,19 @@ function LiveInningsDisplay({ matchId }: { matchId: string }) {
   const { data: ballEvents = [] } = useBallEvents(currentInnings?.id ?? null);
 
   const state = useMemo(() => {
-    if (!currentInnings || !match || ballEvents.length === 0) return null;
+    if (!currentInnings || !match) return null;
+    if (ballEvents.length === 0) {
+      return {
+        totalRuns: 0,
+        wickets: 0,
+        oversDisplay: '0.0',
+        currentRunRate: 0,
+        requiredRunRate: null,
+        targetRuns: currentInnings.target_runs ?? null,
+        runsRequired: currentInnings.target_runs ?? null,
+        ballsRemaining: currentInnings.target_runs ? match.overs_per_innings * 6 : null,
+      };
+    }
     const context: ScoringContext = {
       inningsId: currentInnings.id,
       openingStrikerId: '',
@@ -35,84 +47,121 @@ function LiveInningsDisplay({ matchId }: { matchId: string }) {
 
   const battingSide = currentInnings.batting_team as TeamSide;
   const colors = getTeamColors(battingSide);
+  const isScoringActive = currentInnings.status === 'in_progress';
 
   return (
     <div className="space-y-3">
-      {/* Header */}
+      {/* Header with status badge */}
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <p className="text-sm font-bold text-slate-800 truncate">{match.match_name}</p>
           <p className="text-xs text-slate-500">{match.venue || 'No venue'}</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-[11px] font-bold text-red-600 border border-red-200 animate-live-pulse">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          LIVE
-        </span>
+        {match.status === 'completed' ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            RESULT
+          </span>
+        ) : isScoringActive ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-[11px] font-bold text-red-600 border border-red-200 animate-live-pulse">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            LIVE
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-600 border border-amber-200">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            TOSS DONE
+          </span>
+        )}
       </div>
 
-      {/* Score Card - Glass Dark */}
-      <div className="glass-dark rounded-2xl p-5 glow-red">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-white tabular-nums">{state ? state.totalRuns : 0}</span>
-              <span className="text-slate-400 font-bold text-xl">/{state?.wickets ?? 0}</span>
-              <span className="text-slate-500 text-xs ml-1 font-medium">
-                ({state?.oversDisplay ?? '0.0'} ov)
-              </span>
+      {/* Score Card - Premium Glass Dark */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 p-5 shadow-2xl border border-slate-700/50">
+        {/* Glass overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+        
+        {/* Live pulse ring */}
+        {isScoringActive && (
+          <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-red-500/10 blur-3xl animate-pulse" />
+        )}
+        
+        <div className="relative">
+          <div className="flex items-center justify-between">
+            <div>
+              {!isScoringActive && match.status !== 'completed' ? (
+                <div className="space-y-1">
+                  <p className="text-lg font-bold text-white">{match.team_a_name}</p>
+                  <p className="text-sm text-slate-400 font-semibold">vs</p>
+                  <p className="text-lg font-bold text-white">{match.team_b_name}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-extrabold text-white tabular-nums">{state ? state.totalRuns : 0}</span>
+                    <span className="text-slate-400 font-bold text-2xl">/{state?.wickets ?? 0}</span>
+                    <span className="text-slate-500 text-sm ml-1 font-medium">
+                      ({state?.oversDisplay ?? '0.0'} ov)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5 font-medium">
+                    {currentInnings.batting_team === 'team_a' ? match.team_a_name : match.team_b_name} {isScoringActive ? 'bat' : 'to bat'}
+                  </p>
+                </>
+              )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 font-medium">{currentInnings.batting_team === 'team_a' ? match.team_a_name : match.team_b_name} bat</p>
+            {currentInnings.batting_team === 'team_a' ? (
+              <div className={`flex items-center justify-center w-14 h-14 rounded-full ${colors.light} ${colors.text} font-extrabold text-xl shadow-lg ring-4 ring-white/20`}>
+                A
+              </div>
+            ) : (
+              <div className={`flex items-center justify-center w-14 h-14 rounded-full ${colors.light} ${colors.text} font-extrabold text-xl shadow-lg ring-4 ring-white/20`}>
+                B
+              </div>
+            )}
           </div>
-          {currentInnings.batting_team === 'team_a' ? (
-            <div className={`flex items-center justify-center w-12 h-12 rounded-full ${colors.light} ${colors.text} font-extrabold text-lg shadow-lg`}>
-              A
-            </div>
-          ) : (
-            <div className={`flex items-center justify-center w-12 h-12 rounded-full ${colors.light} ${colors.text} font-extrabold text-lg shadow-lg`}>
-              B
+
+          {/* Target / Need / Left */}
+          {currentInnings.target_runs && state && (
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm p-2.5 text-center border border-white/5">
+                <p className="text-slate-400 uppercase text-[10px] font-bold tracking-wider">Target</p>
+                <p className="text-teal-300 font-extrabold text-xl tabular-nums">{currentInnings.target_runs}</p>
+              </div>
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm p-2.5 text-center border border-white/5">
+                <p className="text-slate-400 uppercase text-[10px] font-bold tracking-wider">Need</p>
+                <p className="text-amber-300 font-extrabold text-xl tabular-nums">{state.runsRequired ?? '-'}</p>
+              </div>
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm p-2.5 text-center border border-white/5">
+                <p className="text-slate-400 uppercase text-[10px] font-bold tracking-wider">Left</p>
+                <p className="text-sky-300 font-extrabold text-xl tabular-nums">{state.ballsRemaining ?? '-'}</p>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Target / Need / Left */}
-        {currentInnings.target_runs && (
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm p-2.5 text-center">
-              <p className="text-slate-400 uppercase text-[10px] font-bold tracking-wider">Target</p>
-              <p className="text-teal-300 font-extrabold text-lg tabular-nums">{currentInnings.target_runs}</p>
+          {/* CRR / RRR */}
+          {state && (
+            <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-teal-400" />
+                CRR: <strong className="text-slate-200 tabular-nums">{state.currentRunRate.toFixed(1)}</strong>
+              </span>
+              {currentInnings.target_runs && state.requiredRunRate != null && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                  RRR: <strong className="text-slate-200 tabular-nums">{state.requiredRunRate.toFixed(1)}</strong>
+                </span>
+              )}
             </div>
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm p-2.5 text-center">
-              <p className="text-slate-400 uppercase text-[10px] font-bold tracking-wider">Need</p>
-              <p className="text-amber-300 font-extrabold text-lg tabular-nums">{state?.runsRequired ?? '-'}</p>
-            </div>
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm p-2.5 text-center">
-              <p className="text-slate-400 uppercase text-[10px] font-bold tracking-wider">Left</p>
-              <p className="text-sky-300 font-extrabold text-lg tabular-nums">{state?.ballsRemaining ?? '-'}</p>
-            </div>
-          </div>
-        )}
-
-        {/* CRR / RRR */}
-        <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
-          <span className="inline-flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-teal-400" />
-            CRR: <strong className="text-slate-200 tabular-nums">{state?.currentRunRate.toFixed(1) ?? '0.0'}</strong>
-          </span>
-          {currentInnings.target_runs && (
-            <span className="inline-flex items-center gap-1.5">
-              <Gauge className="w-3.5 h-3.5 text-amber-400" />
-              RRR: <strong className="text-slate-200 tabular-nums">{state?.requiredRunRate?.toFixed(1) ?? '0.0'}</strong>
-            </span>
           )}
         </div>
       </div>
 
       {/* Previous Innings Score */}
       {prevInnings && (
-        <div className="flex items-center gap-2 text-[11px] text-slate-500 glass rounded-xl px-3 py-2">
-          <span className="font-semibold text-slate-600">1st Innings:</span>
-          <span>{prevInnings.batting_team === 'team_a' ? match.team_a_name : match.team_b_name}</span>
-          <span className="font-bold text-slate-700">{prevInnings.target_runs ? `${prevInnings.target_runs - 1}/all out` : 'Completed'}</span>
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 glass rounded-xl px-3 py-2 min-w-0">
+          <span className="font-semibold text-slate-600 shrink-0">1st Innings:</span>
+          <span className="truncate min-w-0">{prevInnings.batting_team === 'team_a' ? match.team_a_name : match.team_b_name}</span>
+          <span className="font-bold text-slate-700 shrink-0">{prevInnings.target_runs ? `${prevInnings.target_runs - 1}/all out` : 'Completed'}</span>
         </div>
       )}
     </div>

@@ -88,6 +88,15 @@ export interface DerivedInningsState {
   isCompleted: boolean;
 }
 
+export type AppContent = Database['public']['Tables']['app_content']['Row'];
+
+export interface AboutPageContent {
+  description: string;
+  features: string[];
+  footerNote: string;
+  profilePhotoUrl?: string;
+}
+
 export interface MatchHistoryItem {
   match: Match;
   superOver: Match | null;

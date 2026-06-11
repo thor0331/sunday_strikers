@@ -1,12 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, CalendarCheck, Home, Trophy, Users, User, Swords, BookOpen, Award, Zap } from 'lucide-react';
+import { BarChart3, CalendarCheck, Home, Info, Trophy, Users, User, Swords, BookOpen, Award, Zap, Medal } from 'lucide-react';
+import { Footer } from '../common/Footer';
 
 const navItems = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/my-dashboard', label: 'My Stats', icon: User },
   { to: '/availability', label: 'Availability', icon: CalendarCheck },
   { to: '/matches', label: 'Matches', icon: Trophy },
-  { to: '/leaderboards', label: 'Leaders', icon: BarChart3 }
+  { to: '/records', label: 'Records', icon: Medal }
 ];
 
 export function PublicLayout() {
@@ -28,8 +29,14 @@ export function PublicLayout() {
             <NavLink to="/season-summary" className="text-[10px] font-semibold text-slate-400 hover:text-teal-600 transition-colors px-1.5 sm:px-2 py-1 rounded hover:bg-teal-50">
               <Zap className="w-3 h-3 inline mr-0.5" />Season
             </NavLink>
+            <NavLink to="/leaderboards" className="text-[10px] font-semibold text-slate-400 hover:text-teal-600 transition-colors px-1.5 sm:px-2 py-1 rounded hover:bg-teal-50">
+              <BarChart3 className="w-3 h-3 inline mr-0.5" />Leaders
+            </NavLink>
             <NavLink to="/hall-of-fame" className="text-[10px] font-semibold text-slate-400 hover:text-teal-600 transition-colors px-1.5 sm:px-2 py-1 rounded hover:bg-teal-50 hidden sm:inline-flex">
               HoF
+            </NavLink>
+            <NavLink to="/about" className="text-[10px] font-semibold text-slate-400 hover:text-teal-600 transition-colors px-1.5 sm:px-2 py-1 rounded hover:bg-teal-50">
+              <Info className="w-3 h-3 inline mr-0.5" />About
             </NavLink>
           </div>
         </div>
@@ -37,6 +44,7 @@ export function PublicLayout() {
       <main className="mx-auto w-full max-w-3xl px-4 py-6">
         <Outlet />
       </main>
+      <Footer />
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="mx-auto grid max-w-3xl grid-cols-5">
           {navItems.map((item) => (

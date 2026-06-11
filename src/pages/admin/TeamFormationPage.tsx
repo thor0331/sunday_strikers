@@ -66,7 +66,7 @@ export function TeamFormationPage() {
           isCaptain: player.id === resolvedTeamACaptainId || player.id === resolvedTeamBCaptainId
         };
       })
-      .filter((assignment) => assignment !== null) as TeamAssignment[]);
+      .filter((assignment): assignment is TeamAssignment => assignment !== null));
   }
 
   async function save() {

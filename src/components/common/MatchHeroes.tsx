@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { CircularAvatar } from './CircularAvatar';
 import { GlassCard } from './GlassCard';
 import { Award, Flame, Sparkles, Target } from 'lucide-react';
+import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 
 interface MatchHeroesProps {
   match: Match;
@@ -13,6 +14,8 @@ interface MatchHeroesProps {
 }
 
 export function MatchHeroes({ match, innings1Stats, innings2Stats, playerMap, playerPhotoMap }: MatchHeroesProps) {
+  const avatarViewer = useAvatarViewerStore();
+
   const heroes = useMemo(() => {
     const allBatting = [
       ...Object.values(innings1Stats?.battingStats ?? {}),
@@ -43,7 +46,12 @@ export function MatchHeroes({ match, innings1Stats, innings2Stats, playerMap, pl
   }, [innings1Stats, innings2Stats]);
 
   const potmName = match.player_of_match_id ? playerMap.get(match.player_of_match_id) : null;
-  const potmPhoto = match.player_of_match_id ? playerPhotoMap.get(match.player_of_match_id) : null;
+  const potmId = match.player_of_match_id;
+  const potmPhoto = potmId ? playerPhotoMap.get(potmId) : null;
+
+  const topScorerPhoto = heroes.topScorer ? playerPhotoMap.get(heroes.topScorer.playerId) : null;
+  const bestBowlerPhoto = heroes.bestBowler ? playerPhotoMap.get(heroes.bestBowler.playerId) : null;
+  const impactPhoto = heroes.impactPlayerId ? playerPhotoMap.get(heroes.impactPlayerId) : null;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -53,7 +61,8 @@ export function MatchHeroes({ match, innings1Stats, innings2Stats, playerMap, pl
         label="Top Scorer"
         playerName={heroes.topScorer ? playerMap.get(heroes.topScorer.playerId) ?? '-' : '-'}
         stat={heroes.topScorer ? `${heroes.topScorer.runs} runs (${heroes.topScorer.balls}b)` : '-'}
-        photoUrl={heroes.topScorer ? playerPhotoMap.get(heroes.topScorer.playerId) : null}
+        photoUrl={topScorerPhoto}
+        onPhotoClick={topScorerPhoto && heroes.topScorer ? () => avatarViewer.open(topScorerPhoto!, playerMap.get(heroes.topScorer!.playerId) ?? '') : undefined}
       />
       <HeroCard
         icon={<Sparkles className="w-5 h-5" />}
@@ -61,7 +70,8 @@ export function MatchHeroes({ match, innings1Stats, innings2Stats, playerMap, pl
         label="Best Bowler"
         playerName={heroes.bestBowler ? playerMap.get(heroes.bestBowler.playerId) ?? '-' : '-'}
         stat={heroes.bestBowler ? `${heroes.bestBowler.wickets} wkts (${heroes.bestBowler.oversDisplay} ov)` : '-'}
-        photoUrl={heroes.bestBowler ? playerPhotoMap.get(heroes.bestBowler.playerId) : null}
+        photoUrl={bestBowlerPhoto}
+        onPhotoClick={bestBowlerPhoto && heroes.bestBowler ? () => avatarViewer.open(bestBowlerPhoto!, playerMap.get(heroes.bestBowler!.playerId) ?? '') : undefined}
       />
       <HeroCard
         icon={<Award className="w-5 h-5" />}
@@ -70,6 +80,7 @@ export function MatchHeroes({ match, innings1Stats, innings2Stats, playerMap, pl
         playerName={potmName ?? '-'}
         stat={match.result_text ?? ''}
         photoUrl={potmPhoto}
+        onPhotoClick={potmPhoto && potmId ? () => avatarViewer.open(potmPhoto!, potmName ?? '') : undefined}
       />
       <HeroCard
         icon={<Flame className="w-5 h-5" />}
@@ -77,13 +88,14 @@ export function MatchHeroes({ match, innings1Stats, innings2Stats, playerMap, pl
         label="Match Impact"
         playerName={heroes.impactPlayerId ? playerMap.get(heroes.impactPlayerId) ?? '-' : '-'}
         stat="All-round performance"
-        photoUrl={heroes.impactPlayerId ? playerPhotoMap.get(heroes.impactPlayerId) : null}
+        photoUrl={impactPhoto}
+        onPhotoClick={impactPhoto && heroes.impactPlayerId ? () => avatarViewer.open(impactPhoto!, playerMap.get(heroes.impactPlayerId!) ?? '') : undefined}
       />
     </div>
   );
 }
 
-function HeroCard({ icon, iconBg, label, playerName, stat, photoUrl }: { icon: React.ReactNode; iconBg: string; label: string; playerName: string; stat: string; photoUrl?: string | null }) {
+function HeroCard({ icon, iconBg, label, playerName, stat, photoUrl, onPhotoClick }: { icon: React.ReactNode; iconBg: string; label: string; playerName: string; stat: string; photoUrl?: string | null; onPhotoClick?: () => void }) {
   return (
     <GlassCard variant="light" hover className="p-3 sm:p-4 text-center">
       <div className={`inline-flex items-center justify-center w-9 h-9 rounded-xl ${iconBg} mb-2 shadow-sm`}>
@@ -91,7 +103,7 @@ function HeroCard({ icon, iconBg, label, playerName, stat, photoUrl }: { icon: R
       </div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{label}</p>
       <div className="flex justify-center mb-1.5">
-        <CircularAvatar src={photoUrl} alt={playerName} size="sm" />
+        <CircularAvatar src={photoUrl} alt={playerName} size="sm" onClick={onPhotoClick} />
       </div>
       <p className="text-sm font-bold text-slate-800 truncate">{playerName}</p>
       <p className="text-[11px] text-slate-500 mt-0.5 font-medium">{stat}</p>

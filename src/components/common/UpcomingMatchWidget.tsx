@@ -59,12 +59,12 @@ export function UpcomingMatchWidget({ match }: { match: Match }) {
           <Calendar className="w-4 h-4 text-slate-400" />
         </div>
         <div className="flex items-center gap-2 mb-3">
-          <div className="flex-1 text-center">
-            <p className="text-sm font-extrabold text-slate-800">{match.team_a_name}</p>
+          <div className="flex-1 text-center min-w-0">
+            <p className="text-sm font-extrabold text-slate-800 truncate">{match.team_a_name}</p>
           </div>
-          <div className="text-xs font-bold text-slate-300 px-2 bg-slate-50 rounded-full px-3 py-1">VS</div>
-          <div className="flex-1 text-center">
-            <p className="text-sm font-extrabold text-slate-800">{match.team_b_name}</p>
+          <div className="text-xs font-bold text-slate-300 bg-slate-50 rounded-full px-3 py-1 shrink-0">VS</div>
+          <div className="flex-1 text-center min-w-0">
+            <p className="text-sm font-extrabold text-slate-800 truncate">{match.team_b_name}</p>
           </div>
         </div>
         <div className="space-y-1.5 text-xs text-slate-500 text-center">
