@@ -3,12 +3,10 @@ import { Button } from '../../components/forms/Button';
 import { TextField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
 import { useCreateSeason, useSeasons, useSetActiveSeason, useUpdateSeason, useDeleteSeason } from '../../hooks/useSeasons';
-import { useParentMatches } from '../../hooks/useMatches';
 import { useState, type FormEvent } from 'react';
 
 export function SeasonManagementPage() {
   const { data: seasons = [], isLoading } = useSeasons();
-  const { data: matches = [] } = useParentMatches();
   const createSeason = useCreateSeason();
   const updateSeason = useUpdateSeason();
   const setActiveSeason = useSetActiveSeason();
@@ -34,13 +32,27 @@ export function SeasonManagementPage() {
   }
 
   async function handleDeleteSeason(seasonId: string, seasonName: string) {
-    const hasMatches = matches.some((match) => match.season_id === seasonId);
-    if (hasMatches) {
-      alert(`Cannot delete season "${seasonName}" because matches exist in it.`);
-      return;
-    }
-
-    if (window.confirm(`Are you sure you want to delete season "${seasonName}"?`)) {
+    const confirmed = window.confirm(
+      `Delete Season\n\n` +
+      `This will permanently delete "${seasonName}" and ALL data associated with it.\n` +
+      `This action cannot be undone.\n\n` +
+      `The following will be deleted:\n` +
+      `- Season\n` +
+      `- Matches\n` +
+      `- Team formations\n` +
+      `- Toss information\n` +
+      `- Innings\n` +
+      `- Ball-by-ball events\n` +
+      `- Scorecards\n` +
+      `- Match statistics\n` +
+      `- Player of the Match\n` +
+      `- Awards\n` +
+      `- Season summaries\n` +
+      `- Leaderboards\n` +
+      `- Any other match-related data belonging to this season\n\n` +
+      `Players should NOT be deleted.`
+    );
+    if (confirmed) {
       await deleteSeason.mutateAsync(seasonId);
     }
   }
@@ -98,7 +110,7 @@ export function SeasonManagementPage() {
                     type="button"
                     variant="danger"
                     className="text-xs px-3 py-1.5"
-                    disabled={season.is_active || deleteSeason.isPending}
+                    disabled={deleteSeason.isPending}
                     onClick={() => handleDeleteSeason(season.id, season.name)}
                   >
                     Delete

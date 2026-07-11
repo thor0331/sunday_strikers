@@ -10,6 +10,10 @@ export function useParentMatches() {
   return useQuery({ queryKey: ['parent-matches'], queryFn: matchRepository.listParentMatches, refetchInterval: 15000 });
 }
 
+export function useCompletedMatches() {
+  return useQuery({ queryKey: ['completed-matches'], queryFn: matchRepository.listCompletedMatches });
+}
+
 export function useMatchHistory() {
   return useQuery({
     queryKey: ['match-history'],

@@ -1,9 +1,10 @@
+import { PreviousTeamModal } from '../../components/common/PreviousTeamModal';
 import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
 import { SelectField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
 import { useMatchAvailability } from '../../hooks/useAvailability';
-import { useMatch, useSaveTeams, useSetCaptains } from '../../hooks/useMatches';
+import { useCompletedMatches, useMatch, useSaveTeams, useSetCaptains } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
 import { matchRepository, type TeamAssignment } from '../../repositories/matchRepository';
 import { useMatchWorkflowStore } from '../../stores/matchWorkflowStore';
@@ -20,6 +21,12 @@ export function TeamFormationPage() {
   const setCaptainsMutation = useSetCaptains();
   const saveTeams = useSaveTeams();
   const { teamAssignments, setPlayerTeam: setStoredPlayerTeam, resetTeams, setSelectedMatchId } = useMatchWorkflowStore();
+  const { data: completedMatchesData = [] } = useCompletedMatches();
+  const completedMatches = useMemo(() => completedMatchesData.filter((m) => m.id !== matchId), [completedMatchesData, matchId]);
+  const hasCompletedMatches = completedMatches.length > 0;
+  const [showPreviousTeamModal, setShowPreviousTeamModal] = useState(false);
+  const [battingOrders, setBattingOrders] = useState<Record<string, number>>({});
+
   const [teamACaptainId, setTeamACaptainId] = useState(match?.team_a_captain_id ?? '');
   const [teamBCaptainId, setTeamBCaptainId] = useState(match?.team_b_captain_id ?? '');
 
@@ -49,7 +56,29 @@ export function TeamFormationPage() {
       resolvedTeamBCaptainId
     );
     resetTeams();
+    setBattingOrders({});
     draft.forEach((assignment) => setStoredPlayerTeam(assignment.playerId, assignment.team));
+  }
+
+  async function handleImportPreviousTeam(previousMatchId: string) {
+    const [previousMatch, previousPlayers] = await Promise.all([
+      matchRepository.get(previousMatchId),
+      matchRepository.listPlayers(previousMatchId)
+    ]);
+    const selectableIds = new Set(selectablePlayers.map((p) => p.id));
+    const importedTeamAssignments: Record<string, TeamSide | null> = {};
+    const importedBattingOrders: Record<string, number> = {};
+    previousPlayers.forEach((mp) => {
+      if (!selectableIds.has(mp.player_id)) return;
+      importedTeamAssignments[mp.player_id] = mp.team;
+      if (mp.batting_order != null) importedBattingOrders[mp.player_id] = mp.batting_order;
+    });
+    resetTeams();
+    Object.entries(importedTeamAssignments).forEach(([playerId, team]) => setStoredPlayerTeam(playerId, team));
+    setBattingOrders(importedBattingOrders);
+    setTeamACaptainId(previousMatch.team_a_captain_id ?? '');
+    setTeamBCaptainId(previousMatch.team_b_captain_id ?? '');
+    setShowPreviousTeamModal(false);
   }
 
   function buildAssignments(): TeamAssignment[] {
@@ -62,7 +91,7 @@ export function TeamFormationPage() {
         return {
           playerId: player.id,
           team,
-          battingOrder: orderByTeam[team],
+          battingOrder: battingOrders[player.id] ?? orderByTeam[team],
           isCaptain: player.id === resolvedTeamACaptainId || player.id === resolvedTeamBCaptainId
         };
       })
@@ -99,6 +128,11 @@ export function TeamFormationPage() {
           <Button type="button" variant="secondary" disabled={!resolvedTeamACaptainId || !resolvedTeamBCaptainId} onClick={applyDraft}>
             Draft Selection
           </Button>
+          {hasCompletedMatches && (
+            <Button type="button" variant="secondary" onClick={() => setShowPreviousTeamModal(true)}>
+              Use Previous Team
+            </Button>
+          )}
         </div>
       </PagePanel>
 
@@ -127,12 +161,20 @@ export function TeamFormationPage() {
           <Button type="button" disabled={saveTeams.isPending || setCaptainsMutation.isPending || buildAssignments().length < 2} onClick={() => void save()}>
             Save Teams
           </Button>
-          <Button type="button" variant="secondary" onClick={resetTeams}>
+          <Button type="button" variant="secondary" onClick={() => { resetTeams(); setBattingOrders({}); }}>
             Clear
           </Button>
         </div>
         <MutationStatus error={saveTeams.error || setCaptainsMutation.error} success={saveTeams.isSuccess ? 'Teams saved.' : null} />
       </PagePanel>
+
+      <PreviousTeamModal
+        isOpen={showPreviousTeamModal}
+        onClose={() => setShowPreviousTeamModal(false)}
+        onImport={handleImportPreviousTeam}
+        matches={completedMatches}
+        currentMatchId={matchId}
+      />
     </div>
   );
 }

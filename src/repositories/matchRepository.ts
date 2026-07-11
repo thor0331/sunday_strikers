@@ -118,6 +118,17 @@ export const matchRepository = {
     return assignments;
   },
 
+  async listCompletedMatches() {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('status', 'completed')
+      .eq('is_super_over', false)
+      .order('match_date', { ascending: false })
+      .limit(5);
+    return requireData(data, error);
+  },
+
   async listPlayers(matchId: string) {
     const { data, error } = await supabase.from('match_players').select('*').eq('match_id', matchId).order('team').order('batting_order');
     return requireData(data, error);
