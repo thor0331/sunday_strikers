@@ -91,11 +91,36 @@ export interface DerivedInningsState {
 
 export type AppContent = Database['public']['Tables']['app_content']['Row'];
 
+export interface DeveloperCard {
+  name: string;
+  role: string;
+  photoUrl?: string;
+  email?: string;
+  github?: string;
+  linkedin?: string;
+  website?: string;
+}
+
 export interface AboutPageContent {
   description: string;
   features: string[];
   footerNote: string;
   profilePhotoUrl?: string;
+  clubLogo?: string;
+  clubBanner?: string;
+  clubName?: string;
+  establishedYear?: string;
+  homeGround?: string;
+  location?: string;
+  clubMotto?: string;
+  aboutClub?: string;
+  clubStory?: string;
+  mission?: string;
+  vision?: string;
+  contactEmail?: string;
+  instagram?: string;
+  facebook?: string;
+  developers?: DeveloperCard[];
 }
 
 export interface MatchHistoryItem {

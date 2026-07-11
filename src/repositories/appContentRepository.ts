@@ -56,16 +56,20 @@ export const appContentRepository = {
     });
   },
 
-  async uploadDeveloperPhoto(file: File) {
+  async uploadPhoto(file: File, folder: string, filename: string) {
     if (!file.type.startsWith('image/')) throw new Error('Only image files can be uploaded.');
     const ext = file.name.split('.').pop()?.toLowerCase() || 'webp';
-    const path = `${DEVELOPER_PHOTO_PATH}.${ext}`;
+    const path = `${folder}/${filename}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from('player-photos')
       .upload(path, file, { cacheControl: '3600', upsert: true });
     if (uploadError) throw parseSupabaseError(uploadError);
     const { data: urlData } = supabase.storage.from('player-photos').getPublicUrl(path);
     return urlData.publicUrl;
+  },
+
+  async uploadDeveloperPhoto(file: File) {
+    return this.uploadPhoto(file, 'developer', 'profile');
   },
 
   async deleteDeveloperPhoto() {

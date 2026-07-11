@@ -7,7 +7,7 @@ const navItems = [
   { to: '/my-dashboard', label: 'My Stats', icon: User },
   { to: '/availability', label: 'Availability', icon: CalendarCheck },
   { to: '/matches', label: 'Matches', icon: Trophy },
-  { to: '/records', label: 'Records', icon: Medal }
+  { to: '/hall-of-fame', label: 'Hall of Fame', icon: Medal }
 ];
 
 export function PublicLayout() {

@@ -2,19 +2,20 @@ import { PagePanel } from '../../components/common/PagePanel';
 import { Button } from '../../components/forms/Button';
 import { TextField, TextAreaField } from '../../components/forms/Field';
 import { MutationStatus } from '../../components/forms/MutationStatus';
-import { useAppContent, useUpdateAppContent, useCreateDefaultContent, useUploadDeveloperPhoto, useDeleteDeveloperPhoto } from '../../hooks/useAppContent';
+import { useAppContent, useUpdateAppContent, useCreateDefaultContent, useUploadPhoto } from '../../hooks/useAppContent';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import { useToastStore } from '../../stores/toastStore';
-import type { AboutPageContent } from '../../types/models';
+import type { AboutPageContent, DeveloperCard } from '../../types/models';
 import { useState, useEffect, type FormEvent } from 'react';
-import { Camera, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Camera, Loader2, AlertTriangle, RefreshCw, Plus, Trash2, ExternalLink } from 'lucide-react';
+
+const EMPTY_DEV: DeveloperCard = { name: '', role: '', photoUrl: '', email: '', github: '', linkedin: '', website: '' };
 
 export function SiteContentPage() {
   const { data: content, isLoading, error } = useAppContent('about_page');
   const updateContent = useUpdateAppContent();
   const createDefault = useCreateDefaultContent();
-  const uploadPhoto = useUploadDeveloperPhoto();
-  const deletePhoto = useDeleteDeveloperPhoto();
+  const uploadPhoto = useUploadPhoto();
   const avatarViewer = useAvatarViewerStore();
   const showToast = useToastStore((s) => s.show);
 
@@ -23,236 +24,205 @@ export function SiteContentPage() {
   const [featuresText, setFeaturesText] = useState('');
   const [footerNote, setFooterNote] = useState('');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
+  const [clubLogo, setClubLogo] = useState('');
+  const [clubBanner, setClubBanner] = useState('');
+  const [clubName, setClubName] = useState('');
+  const [establishedYear, setEstablishedYear] = useState('');
+  const [homeGround, setHomeGround] = useState('');
+  const [location, setLocation] = useState('');
+  const [clubMotto, setClubMotto] = useState('');
+  const [aboutClub, setAboutClub] = useState('');
+  const [clubStory, setClubStory] = useState('');
+  const [mission, setMission] = useState('');
+  const [vision, setVision] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [facebook, setFacebook] = useState('');
+  const [developers, setDevelopers] = useState<DeveloperCard[]>([]);
 
   useEffect(() => {
     if (!content) return;
     setTitle(content.title || '');
     let parsed: AboutPageContent | null = null;
-    try {
-      parsed = JSON.parse(content.content) as AboutPageContent;
-    } catch {
-      parsed = null;
-    }
-    setDescription(parsed?.description || '');
-    setFeaturesText(parsed?.features?.join('\n') || '');
-    setFooterNote(parsed?.footerNote || '');
-    setProfilePhotoUrl(parsed?.profilePhotoUrl || '');
+    try { parsed = JSON.parse(content.content) as AboutPageContent; } catch { parsed = null; }
+    if (!parsed) return;
+    setDescription(parsed.description || '');
+    setFeaturesText(parsed.features?.join('\n') || '');
+    setFooterNote(parsed.footerNote || '');
+    setProfilePhotoUrl(parsed.profilePhotoUrl || '');
+    setClubLogo(parsed.clubLogo || '');
+    setClubBanner(parsed.clubBanner || '');
+    setClubName(parsed.clubName || '');
+    setEstablishedYear(parsed.establishedYear || '');
+    setHomeGround(parsed.homeGround || '');
+    setLocation(parsed.location || '');
+    setClubMotto(parsed.clubMotto || '');
+    setAboutClub(parsed.aboutClub || '');
+    setClubStory(parsed.clubStory || '');
+    setMission(parsed.mission || '');
+    setVision(parsed.vision || '');
+    setContactEmail(parsed.contactEmail || '');
+    setInstagram(parsed.instagram || '');
+    setFacebook(parsed.facebook || '');
+    setDevelopers(parsed.developers?.length ? parsed.developers : []);
   }, [content]);
+
+  function buildContent(): AboutPageContent {
+    return {
+      description: description.trim(),
+      features: featuresText.split('\n').map((f) => f.trim()).filter(Boolean),
+      footerNote: footerNote.trim(),
+      profilePhotoUrl,
+      clubLogo, clubBanner, clubName: clubName.trim(), establishedYear: establishedYear.trim(),
+      homeGround: homeGround.trim(), location: location.trim(), clubMotto: clubMotto.trim(),
+      aboutClub: aboutClub.trim(), clubStory: clubStory.trim(), mission: mission.trim(), vision: vision.trim(),
+      contactEmail: contactEmail.trim(), instagram: instagram.trim(), facebook: facebook.trim(),
+      developers: developers.filter((d) => d.name.trim())
+    };
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!content) return;
-
-    const aboutContent: AboutPageContent = {
-      description: description.trim(),
-      features: featuresText.split('\n').map((f) => f.trim()).filter(Boolean),
-      footerNote: footerNote.trim(),
-      profilePhotoUrl: profilePhotoUrl
-    };
-
     try {
-      await updateContent.mutateAsync({
-        id: content.id,
-        input: {
-          title: title.trim() || 'About Sunday Strikers',
-          content: JSON.stringify(aboutContent)
-        }
-      });
+      await updateContent.mutateAsync({ id: content.id, input: { title: title.trim() || 'About Sunday Strikers', content: JSON.stringify(buildContent()) } });
       showToast('About page content saved successfully.', 'success');
-    } catch {
-      showToast('Failed to save content. Please try again.', 'error');
-    }
+    } catch { showToast('Failed to save content. Please try again.', 'error'); }
   }
 
   async function handleCreateDefault() {
-    try {
-      await createDefault.mutateAsync();
-      showToast('Default content created successfully.', 'success');
-    } catch {
-      showToast('Failed to create default content. Check that the app_content table exists.', 'error');
-    }
+    try { await createDefault.mutateAsync(); showToast('Default content created successfully.', 'success'); }
+    catch { showToast('Failed to create default content.', 'error'); }
   }
 
-  async function handlePhotoUpload(file: File) {
-    try {
-      const url = await uploadPhoto.mutateAsync(file);
-      setProfilePhotoUrl(url);
-      showToast('Photo uploaded successfully.', 'success');
-    } catch {
-      showToast('Failed to upload photo. Please try again.', 'error');
-    }
+  async function handlePhotoUpload(file: File, folder: string, filename: string, setter: (url: string) => void) {
+    try { const url = await uploadPhoto.mutateAsync({ file, folder, filename }); setter(url); showToast('Photo uploaded.', 'success'); }
+    catch { showToast('Failed to upload photo.', 'error'); }
   }
 
-  async function handleDeletePhoto() {
-    try {
-      await deletePhoto.mutateAsync();
-      setProfilePhotoUrl('');
-      showToast('Photo removed.', 'success');
-    } catch {
-      showToast('Failed to remove photo.', 'error');
-    }
+  function updateDeveloper(index: number, field: keyof DeveloperCard, value: string) {
+    setDevelopers((prev) => prev.map((d, i) => i === index ? { ...d, [field]: value } : d));
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-500 border-t-transparent"></div>
-          <p className="text-sm font-medium text-slate-500">Loading content...</p>
-        </div>
-      </div>
-    );
-  }
+  function addDeveloper() { setDevelopers((prev) => [...prev, { ...EMPTY_DEV }]); }
+  function removeDeveloper(index: number) { setDevelopers((prev) => prev.filter((_, i) => i !== index)); }
 
-  if (error) {
-    const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
-    return (
-      <PagePanel title="About Page Editor">
-        <div className="flex flex-col items-center gap-4 py-8 text-center">
-          <AlertTriangle className="h-10 w-10 text-red-400" />
-          <div>
-            <p className="text-sm font-semibold text-red-600">Failed to load content</p>
-            <p className="mt-1 text-xs text-slate-500 max-w-md break-all">{message}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={handleCreateDefault}
-              disabled={createDefault.isPending}
-            >
-              {createDefault.isPending ? 'Creating...' : 'Initialize Default Content'}
-            </Button>
-          </div>
-        </div>
-      </PagePanel>
-    );
-  }
+  if (isLoading) return <div className="flex min-h-[50vh] items-center justify-center"><div className="flex flex-col items-center gap-3"><div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-500 border-t-transparent"></div><p className="text-sm font-medium text-slate-500">Loading...</p></div></div>;
 
-  if (!content) {
-    return (
-      <PagePanel title="About Page Editor">
-        <div className="flex flex-col items-center gap-4 py-8 text-center">
-          <RefreshCw className="h-10 w-10 text-slate-300" />
-          <div>
-            <p className="text-sm font-semibold text-slate-600">Content not found</p>
-            <p className="mt-1 text-xs text-slate-400">
-              The about_page row does not exist in the app_content table.
-              Run the database migration or create default content below.
-            </p>
-          </div>
-          <Button
-            onClick={handleCreateDefault}
-            disabled={createDefault.isPending}
-          >
-            {createDefault.isPending ? 'Creating...' : 'Create Default Content'}
-          </Button>
-          <MutationStatus error={createDefault.error} success={null} />
-        </div>
-      </PagePanel>
-    );
-  }
+  if (error) return <PagePanel title="About Page Editor"><div className="flex flex-col items-center gap-4 py-8 text-center"><AlertTriangle className="h-10 w-10 text-red-400" /><p className="text-sm font-semibold text-red-600">Failed to load content</p><Button variant="secondary" onClick={handleCreateDefault} disabled={createDefault.isPending}>Initialize Default Content</Button></div></PagePanel>;
+
+  if (!content) return <PagePanel title="About Page Editor"><div className="flex flex-col items-center gap-4 py-8 text-center"><RefreshCw className="h-10 w-10 text-slate-300" /><p className="text-sm font-semibold text-slate-600">Content not found</p><Button onClick={handleCreateDefault} disabled={createDefault.isPending}>{createDefault.isPending ? 'Creating...' : 'Create Default Content'}</Button></div></PagePanel>;
 
   return (
     <div className="space-y-4">
       <PagePanel title="About Page Editor">
-        <form className="grid gap-4" onSubmit={submit}>
-          <div className="flex flex-col items-center gap-3 pb-2">
-            <p className="text-sm font-medium text-slate-700">Profile Photo</p>
-            <div className="relative w-20 h-20 sm:w-24 sm:h-24">
-              {profilePhotoUrl ? (
-                <button
-                  type="button"
-                  onClick={() => avatarViewer.open(profilePhotoUrl, 'Arun R.', 'Developer \u2022 Sunday Strikers')}
-                  className="h-full w-full overflow-hidden rounded-full border-2 border-white shadow-md transition-transform hover:scale-105"
-                >
-                  <img src={profilePhotoUrl} alt="Profile" className="h-full w-full object-cover" />
-                </button>
-              ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600 text-lg font-bold text-white sm:text-xl border-2 border-white shadow-md">
-                  A
-                </div>
-              )}
-              {uploadPhoto.isPending ? (
-                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
-                  <Loader2 className="h-6 w-6 animate-spin text-white sm:h-7 sm:w-7" />
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="absolute inset-0 hidden cursor-pointer items-center justify-center rounded-full bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity hover:opacity-100 sm:flex"
-                    onClick={() => document.getElementById('dev-photo-input')?.click()}
-                  >
-                    <Camera className="h-5 w-5 text-white drop-shadow-sm" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById('dev-photo-input')?.click()}
-                    className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-teal-500 text-white shadow-md border-2 border-white transition-transform hover:scale-110 active:scale-95 sm:hidden"
-                  >
-                    <Camera className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              )}
-              <input
-                id="dev-photo-input"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handlePhotoUpload(file);
-                  e.target.value = '';
-                }}
-              />
+        <form className="grid gap-6" onSubmit={submit}>
+          {/* Club Identity */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Club Identity</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PhotoField label="Club Logo" url={clubLogo} onUpload={(f) => handlePhotoUpload(f, 'club', 'logo', setClubLogo)} onRemove={() => setClubLogo('')} onView={clubLogo ? () => avatarViewer.open(clubLogo, 'Club Logo') : undefined} isPending={uploadPhoto.isPending} />
+              <PhotoField label="Club Banner" url={clubBanner} onUpload={(f) => handlePhotoUpload(f, 'club', 'banner', setClubBanner)} onRemove={() => setClubBanner('')} onView={clubBanner ? () => avatarViewer.open(clubBanner, 'Club Banner') : undefined} isPending={uploadPhoto.isPending} />
             </div>
-            {profilePhotoUrl && !uploadPhoto.isPending ? (
-              <button
-                type="button"
-                onClick={handleDeletePhoto}
-                className="text-[11px] font-medium text-red-500 hover:text-red-600 transition-colors"
-              >
-                Delete Photo
-              </button>
-            ) : null}
+            <TextField label="Club Name" value={clubName} onChange={(e) => setClubName(e.target.value)} placeholder="Sunday Strikers" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField label="Established Year" value={establishedYear} onChange={(e) => setEstablishedYear(e.target.value)} placeholder="2024" />
+              <TextField label="Location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City, Country" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField label="Home Ground" value={homeGround} onChange={(e) => setHomeGround(e.target.value)} placeholder="Stadium Name" />
+              <TextField label="Club Motto" value={clubMotto} onChange={(e) => setClubMotto(e.target.value)} placeholder="Play with passion" />
+            </div>
           </div>
 
-          <TextField
-            label="Developer Name"
-            value={title === 'About Sunday Strikers' ? '' : title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Arun R."
-          />
-          <TextField
-            label="Developer Role"
-            value={footerNote}
-            onChange={(e) => setFooterNote(e.target.value)}
-            placeholder="Developer • Sunday Strikers"
-          />
-          <TextAreaField
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter about page description..."
-            rows={4}
-          />
-          <TextAreaField
-            label="Features (one per line)"
-            value={featuresText}
-            onChange={(e) => setFeaturesText(e.target.value)}
-            placeholder="🏏 Live Scoring&#10;📊 Statistics&#10;🏆 Leaderboards"
-            rows={6}
-          />
-          <div className="flex gap-2">
-            <Button disabled={updateContent.isPending}>
-              {updateContent.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
+          {/* About Content */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">About Content</h3>
+            <TextAreaField label="About Club" value={aboutClub} onChange={(e) => setAboutClub(e.target.value)} placeholder="Tell us about the club..." rows={3} />
+            <TextAreaField label="Club Story" value={clubStory} onChange={(e) => setClubStory(e.target.value)} placeholder="The story of how it all began..." rows={3} />
+            <TextAreaField label="Mission" value={mission} onChange={(e) => setMission(e.target.value)} placeholder="Our mission..." rows={2} />
+            <TextAreaField label="Vision" value={vision} onChange={(e) => setVision(e.target.value)} placeholder="Our vision..." rows={2} />
+            <TextAreaField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Page description..." rows={3} />
+            <TextAreaField label="Features (one per line)" value={featuresText} onChange={(e) => setFeaturesText(e.target.value)} placeholder="🏏 Live Scoring..." rows={5} />
           </div>
-          <MutationStatus
-            error={updateContent.error}
-            success={null}
-          />
+
+          {/* Social & Contact */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Social & Contact</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField label="Contact Email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="hello@club.com" type="email" />
+              <TextField label="Instagram" value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/..." />
+            </div>
+            <TextField label="Facebook" value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="https://facebook.com/..." />
+          </div>
+
+          {/* Developer Photo */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Developer (Footer)</h3>
+            <PhotoField label="Profile Photo" url={profilePhotoUrl} onUpload={(f) => handlePhotoUpload(f, 'developer', 'profile', setProfilePhotoUrl)} onRemove={() => setProfilePhotoUrl('')} onView={profilePhotoUrl ? () => avatarViewer.open(profilePhotoUrl, 'Developer') : undefined} isPending={uploadPhoto.isPending} />
+            <TextField label="Footer Note" value={footerNote} onChange={(e) => setFooterNote(e.target.value)} placeholder="Built by Arun R." />
+          </div>
+
+          {/* Developer Cards */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Developer Cards</h3>
+              <Button type="button" variant="secondary" className="text-xs px-3 py-1.5" onClick={addDeveloper}><Plus className="w-3 h-3 mr-1 inline" />Add</Button>
+            </div>
+            {developers.map((dev, i) => (
+              <div key={i} className="rounded-xl border border-slate-200 p-4 space-y-3 bg-white/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Developer {i + 1}</span>
+                  <button type="button" onClick={() => removeDeveloper(i)} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <TextField label="Name" value={dev.name} onChange={(e) => updateDeveloper(i, 'name', e.target.value)} placeholder="Full Name" />
+                  <TextField label="Role" value={dev.role} onChange={(e) => updateDeveloper(i, 'role', e.target.value)} placeholder="Developer" />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <TextField label="Email" value={dev.email ?? ''} onChange={(e) => updateDeveloper(i, 'email', e.target.value)} placeholder="email@example.com" type="email" />
+                  <TextField label="GitHub" value={dev.github ?? ''} onChange={(e) => updateDeveloper(i, 'github', e.target.value)} placeholder="https://github.com/..." />
+                  <TextField label="LinkedIn" value={dev.linkedin ?? ''} onChange={(e) => updateDeveloper(i, 'linkedin', e.target.value)} placeholder="https://linkedin.com/..." />
+                </div>
+                <TextField label="Website" value={dev.website ?? ''} onChange={(e) => updateDeveloper(i, 'website', e.target.value)} placeholder="https://..." />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <Button disabled={updateContent.isPending}>{updateContent.isPending ? 'Saving...' : 'Save Changes'}</Button>
+          </div>
+          <MutationStatus error={updateContent.error} success={null} />
         </form>
       </PagePanel>
+    </div>
+  );
+}
+
+function PhotoField({ label, url, onUpload, onRemove, onView, isPending }: { label: string; url: string; onUpload: (f: File) => void; onRemove: () => void; onView?: () => void; isPending: boolean }) {
+  const inputId = `photo-${label.replace(/\s/g, '-')}`;
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-medium text-slate-600">{label}</label>
+      <div className="flex items-center gap-3">
+        {url ? (
+          <div className="relative group">
+            <button type="button" onClick={onView} className="h-16 w-16 overflow-hidden rounded-xl border-2 border-white shadow-md">
+              <img src={url} alt={label} className="h-full w-full object-cover" />
+            </button>
+            {isPending && <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/50"><Loader2 className="h-5 w-5 animate-spin text-white" /></div>}
+          </div>
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400">
+            <Camera className="w-5 h-5" />
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <label htmlFor={inputId} className="cursor-pointer text-xs font-medium text-teal-600 hover:text-teal-700">{url ? 'Change' : 'Upload'}</label>
+          <input id={inputId} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
+          {url && <button type="button" onClick={onRemove} className="text-xs font-medium text-red-500 hover:text-red-600">Remove</button>}
+        </div>
+      </div>
     </div>
   );
 }

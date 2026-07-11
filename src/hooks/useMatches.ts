@@ -176,6 +176,7 @@ export function useDeleteMatch() {
       void queryClient.invalidateQueries({ queryKey: ['matches'] });
       void queryClient.invalidateQueries({ queryKey: ['parent-matches'] });
       void queryClient.invalidateQueries({ queryKey: ['match-history'] });
+      void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
     }
   });
 }
@@ -190,6 +191,7 @@ export function useResetMatch() {
       void queryClient.invalidateQueries({ queryKey: ['innings', match.id] });
       void queryClient.invalidateQueries({ queryKey: ['ball-events', match.id] });
       void queryClient.invalidateQueries({ queryKey: ['match-history'] });
+      void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
     }
   });
 }

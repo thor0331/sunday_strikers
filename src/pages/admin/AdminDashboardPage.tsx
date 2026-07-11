@@ -125,6 +125,9 @@ export function AdminDashboardPage() {
           <Link to="/admin/seasons" className="w-full">
             <Button variant="secondary" className="w-full">Manage Seasons</Button>
           </Link>
+          <Link to="/admin/maintenance" className="w-full">
+            <Button variant="secondary" className="w-full">Maintenance</Button>
+          </Link>
         </div>
       </PagePanel>
 

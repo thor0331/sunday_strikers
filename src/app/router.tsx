@@ -27,6 +27,8 @@ import { PlayersPage } from '../pages/public/PlayersPage';
 import { SeasonAwardsPage } from '../pages/public/SeasonAwardsPage';
 import { SeasonsPage } from '../pages/public/SeasonsPage';
 import { TeamComparisonPage } from '../pages/public/TeamComparisonPage';
+import { PlayerProfilePage } from '../pages/public/PlayerProfilePage';
+import { AdminMaintenancePage } from '../pages/admin/AdminMaintenancePage';
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +46,7 @@ export const router = createBrowserRouter([
       { path: '/teams', element: <TeamComparisonPage /> },
       { path: '/awards', element: <SeasonAwardsPage /> },
       { path: '/hall-of-fame', element: <HallOfFamePage /> },
+      { path: '/players/:playerId', element: <PlayerProfilePage /> },
       { path: '/records', element: <ClubRecordsPage /> },
       { path: '/season-summary', element: <SeasonSummaryPage /> },
       { path: '/about', element: <AboutPage /> }
@@ -66,7 +69,8 @@ export const router = createBrowserRouter([
           { path: 'matches/:matchId/toss', element: <TossPage /> },
           { path: 'matches/:matchId/scoring', element: <LiveScoringPage /> },
           { path: 'matches/:matchId/details', element: <AdminMatchDetailsPage /> },
-          { path: 'content', element: <SiteContentPage /> }
+          { path: 'content', element: <SiteContentPage /> },
+          { path: 'maintenance', element: <AdminMaintenancePage /> }
         ]
       }
     ]

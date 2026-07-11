@@ -255,6 +255,10 @@ export const matchRepository = {
   },
 
   async delete(matchId: string) {
+    const match = await this.get(matchId);
+    if (match.status === 'completed') {
+      await this.update(matchId, { status: 'draft' });
+    }
     const { data, error } = await supabase.from('matches').delete().eq('id', matchId).select();
     return requireData(data, error);
   },

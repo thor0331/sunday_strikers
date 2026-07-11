@@ -35,6 +35,13 @@ export function useUploadDeveloperPhoto() {
   });
 }
 
+export function useUploadPhoto() {
+  return useMutation({
+    mutationFn: ({ file, folder, filename }: { file: File; folder: string; filename: string }) =>
+      appContentRepository.uploadPhoto(file, folder, filename)
+  });
+}
+
 export function useDeleteDeveloperPhoto() {
   const queryClient = useQueryClient();
   return useMutation({
