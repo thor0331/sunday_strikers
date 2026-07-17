@@ -13,11 +13,13 @@ import {
 import { usePlayers } from '../../hooks/usePlayers';
 import {   useBallEvents, useCreateBallEvent, useUndoLastBall
 } from '../../hooks/useBallEvents';
+import type { CreateBallEventInput } from '../../repositories/ballEventsRepository';
 import { useSetMatchInProgress } from '../../hooks/useMatches';
 import { emitScoreEvent } from '../../components/common/ScoreAnimation';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import type { BallEvent, TeamSide, ExtraType, WicketType } from '../../types/models';
 import { supabase } from '../../services/supabaseClient';
+import { updateStatsForCompletedMatch } from '../../services/statisticsService';
 import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Undo2, RotateCcw, Skull, ChevronLeft, Target, Gauge, TrendingUp, Zap, Trophy } from 'lucide-react';
@@ -109,6 +111,10 @@ export function LiveScoringPage() {
   // Extra Form states
   const [extraRunsBatter, setExtraRunsBatter] = useState('0');
   const [extraRunsExtra, setExtraRunsExtra] = useState('1');
+
+  // Manual change tracking
+  const [hasBowlerBeenChangedThisOver, setHasBowlerBeenChangedThisOver] = useState(false);
+  const [hasBatsmanBeenChangedThisOver, setHasBatsmanBeenChangedThisOver] = useState(false);
 
   // Super Over name state
   const [superOverName, setSuperOverName] = useState('Super Over');
@@ -234,12 +240,33 @@ export function LiveScoringPage() {
     if (!inningsState) return false;
     if (ballEvents.length === 0) return !currentBowlerId;
     if (isOverComplete) {
-      // If last ball completed the over, we must select a new bowler (different from last event bowler)
-      // Check if the currentBowlerId in state is same as the bowler of the last ball
       return !currentBowlerId || currentBowlerId === lastEvent?.bowlerId;
     }
     return !currentBowlerId;
   }, [inningsState, ballEvents, isOverComplete, currentBowlerId, lastEvent]);
+
+  // Check if any legal deliveries have been bowled in the current over
+  const legalDeliveriesInCurrentOver = useMemo(() => {
+    if (!inningsState || ballEvents.length === 0) return 0;
+    const currentOver = Math.floor(inningsState.legalBalls / 6);
+    return ballEvents.filter((e) => e.overNumber === currentOver && e.isLegalDelivery).length;
+  }, [inningsState, ballEvents]);
+
+  // Can the bowler be changed? Only before the first legal ball of the over
+  const canChangeBowler = useMemo(() => {
+    if (!inningsState) return false;
+    if (ballEvents.length === 0) return true;
+    if (legalDeliveriesInCurrentOver === 0 && !hasBowlerBeenChangedThisOver) return true;
+    return false;
+  }, [inningsState, ballEvents, legalDeliveriesInCurrentOver, hasBowlerBeenChangedThisOver]);
+
+  // Can batsmen be changed? Only before the first legal ball of the over
+  const canChangeBatsmen = useMemo(() => {
+    if (!inningsState) return false;
+    if (ballEvents.length === 0) return true;
+    if (legalDeliveriesInCurrentOver === 0 && !hasBatsmanBeenChangedThisOver) return true;
+    return false;
+  }, [inningsState, ballEvents, legalDeliveriesInCurrentOver, hasBatsmanBeenChangedThisOver]);
 
   // Start Innings 1 or 2
   async function handleStartInnings(event: FormEvent) {
@@ -260,11 +287,24 @@ export function LiveScoringPage() {
     }
 
     setCurrentBowlerId(openingBowlerId);
+    setHasBowlerBeenChangedThisOver(false);
+    setHasBatsmanBeenChangedThisOver(false);
+    setIncomingBatsmanId(null);
   }
 
   // Log a regular ball
   async function handleLogBall(runsBatter: 0 | 1 | 2 | 3 | 4 | 6) {
     if (!activeInnings || !inningsState || !currentBowlerId) return;
+
+    // BUG 1 FIX: Reset all wicket-related state to prevent stale state leakage
+    setShowWicketForm(false);
+    setWicketType('bowled');
+    setDismissedPlayerId('');
+    setFielderId('');
+    setWicketRunsBatter('0');
+    setWicketRunsExtra('0');
+    setWicketExtraType('');
+    setWicketIsLegal(true);
 
     const overNumber = Math.floor(inningsState.legalBalls / 6);
     const ballInOver = (inningsState.legalBalls % 6) + 1;
@@ -298,6 +338,7 @@ export function LiveScoringPage() {
       }
     });
 
+    setIncomingBatsmanId(null);
     emitScoreEvent('runs', `+${runsBatter}`);
   }
 
@@ -306,30 +347,42 @@ export function LiveScoringPage() {
     event.preventDefault();
     if (!activeInnings || !inningsState || !currentBowlerId || !selectedExtraType) return;
 
+    // BUG 1 FIX: Reset all wicket-related state before creating the event
+    setWicketType('bowled');
+    setDismissedPlayerId('');
+    setFielderId('');
+    setWicketRunsBatter('0');
+    setWicketRunsExtra('0');
+    setWicketExtraType('');
+    setWicketIsLegal(true);
+
     const overNumber = Math.floor(inningsState.legalBalls / 6);
     const ballInOver = (inningsState.legalBalls % 6) + 1;
     const runsB = Number(extraRunsBatter);
     const runsEx = Number(extraRunsExtra);
     const isLegal = selectedExtraType === 'bye' || selectedExtraType === 'leg_bye';
 
+    // Create a completely fresh event object with all fields explicitly set
+    const eventInput: CreateBallEventInput = {
+      match_id: matchId,
+      innings_id: activeInnings.id,
+      over_number: overNumber,
+      ball_in_over: ballInOver,
+      striker_id: inningsState.strikerId!,
+      non_striker_id: inningsState.nonStrikerId!,
+      bowler_id: currentBowlerId,
+      runs_batter: runsB as 0 | 1 | 2 | 3 | 4 | 6,
+      runs_extra: runsEx,
+      extra_type: selectedExtraType as ExtraType,
+      is_wicket: false,
+      wicket_type: null,
+      dismissed_player_id: null,
+      fielder_id: null,
+      is_legal_delivery: isLegal
+    };
+
     await createBallEvent.mutateAsync({
-      input: {
-        match_id: matchId,
-        innings_id: activeInnings.id,
-        over_number: overNumber,
-        ball_in_over: ballInOver,
-        striker_id: inningsState.strikerId!,
-        non_striker_id: inningsState.nonStrikerId!,
-        bowler_id: currentBowlerId,
-        runs_batter: runsB as any,
-        runs_extra: runsEx,
-        extra_type: selectedExtraType,
-        is_wicket: false,
-        wicket_type: null,
-        dismissed_player_id: null,
-        fielder_id: null,
-        is_legal_delivery: isLegal
-      },
+      input: eventInput,
       context: {
         inningsId: activeInnings.id,
         openingStrikerId: resolvedOpeningStrikerId,
@@ -345,12 +398,17 @@ export function LiveScoringPage() {
     setSelectedExtraType(null);
     setExtraRunsBatter('0');
     setExtraRunsExtra('1');
+    setIncomingBatsmanId(null);
   }
 
   // Log a Wicket
   async function handleLogWicket(event: FormEvent) {
     event.preventDefault();
     if (!activeInnings || !inningsState || !currentBowlerId || !dismissedPlayerId) return;
+
+    // BUG 2 FIX: Recalculate available batters from current match state (never use stale state)
+    const battersWhoHaveBatted = Object.keys(inningsState.battingStats);
+    const currentAvailableBatters = battingSquadIds.filter((id) => !battersWhoHaveBatted.includes(id));
 
     const overNumber = Math.floor(inningsState.legalBalls / 6);
     const ballInOver = (inningsState.legalBalls % 6) + 1;
@@ -363,29 +421,32 @@ export function LiveScoringPage() {
     const isAllOut = newWickets >= maxWickets;
 
     // Only require incoming batsman selection if it's NOT all-out AND there are remaining batsmen
-    if (!isAllOut && remainingBatsmen.length > 0 && !incomingBatsmanId) {
+    if (!isAllOut && currentAvailableBatters.length > 0 && !incomingBatsmanId) {
       alert('Please select an incoming batsman for the next delivery.');
       return;
     }
 
+    // Create a completely fresh event object with all fields explicitly set
+    const eventInput: CreateBallEventInput = {
+      match_id: matchId,
+      innings_id: activeInnings.id,
+      over_number: overNumber,
+      ball_in_over: ballInOver,
+      striker_id: inningsState.strikerId!,
+      non_striker_id: inningsState.nonStrikerId!,
+      bowler_id: currentBowlerId,
+      runs_batter: runsB as 0 | 1 | 2 | 3 | 4 | 6,
+      runs_extra: runsEx,
+      extra_type: exType as ExtraType | null,
+      is_wicket: true,
+      wicket_type: wicketType,
+      dismissed_player_id: dismissedPlayerId,
+      fielder_id: fielderId || null,
+      is_legal_delivery: wicketIsLegal
+    };
+
     await createBallEvent.mutateAsync({
-      input: {
-        match_id: matchId,
-        innings_id: activeInnings.id,
-        over_number: overNumber,
-        ball_in_over: ballInOver,
-        striker_id: inningsState.strikerId!,
-        non_striker_id: inningsState.nonStrikerId!,
-        bowler_id: currentBowlerId,
-        runs_batter: runsB as any,
-        runs_extra: runsEx,
-        extra_type: exType,
-        is_wicket: true,
-        wicket_type: wicketType,
-        dismissed_player_id: dismissedPlayerId,
-        fielder_id: fielderId || null,
-        is_legal_delivery: wicketIsLegal
-      },
+      input: eventInput,
       context: {
         inningsId: activeInnings.id,
         openingStrikerId: resolvedOpeningStrikerId,
@@ -407,6 +468,7 @@ export function LiveScoringPage() {
     setWicketRunsExtra('0');
     setWicketExtraType('');
     setWicketIsLegal(true);
+    setIncomingBatsmanId(null);
   }
 
   // Undo Last Delivery
@@ -414,6 +476,13 @@ export function LiveScoringPage() {
     if (!activeInnings || ballEvents.length === 0 || !inningsState) return;
 
     if (window.confirm('Delete the last ball?')) {
+      // Check what we're undoing to determine what state to restore
+      const lastBall = [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber).pop();
+      const isUndoingWicket = lastBall?.isWicket ?? false;
+      const isUndoingFirstBallOfOver = lastBall
+        ? ballEvents.filter((e) => e.overNumber === lastBall.overNumber && e.isLegalDelivery).length === 1
+        : false;
+
       await undoLastBall.mutateAsync({
         inningsId: activeInnings.id,
         context: {
@@ -426,9 +495,77 @@ export function LiveScoringPage() {
           targetRuns: activeInnings.target_runs
         }
       });
+
       // Clear local states that might be stale
       setIncomingBatsmanId(null);
+      setShowWicketForm(false);
+
+      // If undoing the first legal ball of the over, re-enable player changes
+      if (isUndoingFirstBallOfOver) {
+        setHasBowlerBeenChangedThisOver(false);
+        setHasBatsmanBeenChangedThisOver(false);
+      }
+
+      // If undoing a wicket, re-enable batsman changes (the dismissed player returns)
+      if (isUndoingWicket) {
+        setHasBatsmanBeenChangedThisOver(false);
+      }
     }
+  }
+
+  // Manual Bowler Change (only before first legal ball of over)
+  function handleChangeBowler(newBowlerId: string) {
+    if (!newBowlerId || !canChangeBowler) return;
+
+    // Validation: bowler must not be the current striker or non-striker
+    if (newBowlerId === inningsState?.strikerId || newBowlerId === inningsState?.nonStrikerId) {
+      alert('The bowler cannot be the same as the current striker or non-striker.');
+      return;
+    }
+
+    setCurrentBowlerId(newBowlerId);
+    setHasBowlerBeenChangedThisOver(true);
+  }
+
+  // Manual Batsman Change (only before first legal ball of over)
+  function handleChangeStriker(newStrikerId: string) {
+    if (!newStrikerId || !canChangeBatsmen || !inningsState) return;
+
+    // Validation: new striker must not be the same as non-striker
+    if (newStrikerId === inningsState.nonStrikerId) {
+      alert('Cannot swap to the same player as the non-striker.');
+      return;
+    }
+
+    // Validation: new striker must not be the bowler
+    if (newStrikerId === currentBowlerId) {
+      alert('The striker cannot be the same as the current bowler.');
+      return;
+    }
+
+    // Swap striker with the selected player
+    setIncomingBatsmanId(newStrikerId);
+    setHasBatsmanBeenChangedThisOver(true);
+  }
+
+  function handleChangeNonStriker(newNonStrikerId: string) {
+    if (!newNonStrikerId || !canChangeBatsmen || !inningsState) return;
+
+    // Validation: new non-striker must not be the same as striker
+    if (newNonStrikerId === inningsState.strikerId) {
+      alert('Cannot swap to the same player as the striker.');
+      return;
+    }
+
+    // Validation: new non-striker must not be the bowler
+    if (newNonStrikerId === currentBowlerId) {
+      alert('The non-striker cannot be the same as the current bowler.');
+      return;
+    }
+
+    // Swap non-striker with the selected player
+    setIncomingBatsmanId(newNonStrikerId);
+    setHasBatsmanBeenChangedThisOver(true);
   }
 
   // Complete Innings 1
@@ -581,6 +718,17 @@ export function LiveScoringPage() {
         resultText,
         playerOfMatchId: playerOfMatchId || null
       });
+
+      // 4. Update player statistics (client-side calculation)
+      try {
+        await updateStatsForCompletedMatch(match.id, (msg) => {
+          console.log('[Statistics]', msg);
+        });
+      } catch (statsError) {
+        // Log but do not block match completion
+        console.error('[Statistics] Failed to update player statistics after match completion:', statsError);
+        alert('Match completed successfully, but player statistics failed to update. Use Maintenance > Rebuild All Statistics to fix this.');
+      }
     }
   }
 
@@ -609,12 +757,21 @@ export function LiveScoringPage() {
     navigate(`/admin/matches/${superOver.id}/teams`);
   }
 
-  // Auto-fill wicket dismissed player options
+  // Auto-fill wicket dismissed player options and reset incoming batsman
   useEffect(() => {
     if (showWicketForm && inningsState) {
       setDismissedPlayerId(inningsState.strikerId || '');
+      setIncomingBatsmanId(null);
     }
   }, [showWicketForm, inningsState]);
+
+  // Reset change tracking flags when over completes
+  useEffect(() => {
+    if (isOverComplete) {
+      setHasBowlerBeenChangedThisOver(false);
+      setHasBatsmanBeenChangedThisOver(false);
+    }
+  }, [isOverComplete]);
 
   // Loading states
   const isLoading = matchLoading || inningsLoading || playersLoading || eventsLoading;
@@ -931,11 +1088,15 @@ export function LiveScoringPage() {
                       onChange={(e) => setIncomingBatsmanId(e.target.value)}
                     >
                       <option value={inningsState.strikerId}>Swap batsman</option>
-                      {remainingBatsmen.map((id) => (
-                        <option key={id} value={id}>
-                          {playerMap.get(id)}
-                        </option>
-                      ))}
+                      {(() => {
+                        const battedIds = Object.keys(inningsState.battingStats);
+                        const available = battingSquadIds.filter((id) => !battedIds.includes(id));
+                        return available.map((id) => (
+                          <option key={id} value={id}>
+                            {playerMap.get(id)}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   )}
                 </div>
@@ -982,11 +1143,15 @@ export function LiveScoringPage() {
                       onChange={(e) => setIncomingBatsmanId(e.target.value)}
                     >
                       <option value={inningsState.nonStrikerId}>Swap batsman</option>
-                      {remainingBatsmen.map((id) => (
-                        <option key={id} value={id}>
-                          {playerMap.get(id)}
-                        </option>
-                      ))}
+                      {(() => {
+                        const battedIds = Object.keys(inningsState.battingStats);
+                        const available = battingSquadIds.filter((id) => !battedIds.includes(id));
+                        return available.map((id) => (
+                          <option key={id} value={id}>
+                            {playerMap.get(id)}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   )}
                 </div>
@@ -1104,6 +1269,97 @@ export function LiveScoringPage() {
       {/* 2.5 Console Control Action Area */}
       {!inningsState?.isCompleted && inningsState && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {/* Manual Bowler Change (only before first legal ball of over) */}
+          {canChangeBowler && !needsBowlerSelection && !showWicketForm && !showExtraForm && (
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <h4 className="text-sm font-bold text-blue-700 mb-2">Change Bowler</h4>
+              <p className="text-xs text-slate-500 mb-3">
+                Bowler can only be changed before the first legal ball of the over.
+              </p>
+              <div className="flex gap-2">
+                <SelectField
+                  label=""
+                  value={currentBowlerId || ''}
+                  onChange={(e) => handleChangeBowler(e.target.value)}
+                >
+                  <option value="">Select bowler</option>
+                  {squads.bowling.map((mp) => (
+                    <option
+                      key={mp.player_id}
+                      value={mp.player_id}
+                      disabled={mp.player_id === inningsState.strikerId || mp.player_id === inningsState.nonStrikerId}
+                    >
+                      {playerMap.get(mp.player_id) ?? 'Player'}
+                      {(mp.player_id === inningsState.strikerId || mp.player_id === inningsState.nonStrikerId) ? ' (Currently batting)' : ''}
+                    </option>
+                  ))}
+                </SelectField>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setHasBowlerBeenChangedThisOver(true)}
+                  className="self-end"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Manual Batsman Change (only before first legal ball of over) */}
+          {canChangeBatsmen && !needsBowlerSelection && !showWicketForm && !showExtraForm && (
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <h4 className="text-sm font-bold text-blue-700 mb-2">Change Batsmen</h4>
+              <p className="text-xs text-slate-500 mb-3">
+                Batsmen can only be changed before the first legal ball of the over.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Striker</label>
+                  <select
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    value={inningsState.strikerId || ''}
+                    onChange={(e) => handleChangeStriker(e.target.value)}
+                  >
+                    <option value={inningsState.strikerId || ''}>
+                      {inningsState.strikerId ? playerMap.get(inningsState.strikerId) : 'Select'}
+                    </option>
+                    {remainingBatsmen.map((id) => (
+                      <option key={id} value={id}>
+                        {playerMap.get(id)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Non-Striker</label>
+                  <select
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    value={inningsState.nonStrikerId || ''}
+                    onChange={(e) => handleChangeNonStriker(e.target.value)}
+                  >
+                    <option value={inningsState.nonStrikerId || ''}>
+                      {inningsState.nonStrikerId ? playerMap.get(inningsState.nonStrikerId) : 'Select'}
+                    </option>
+                    {remainingBatsmen.map((id) => (
+                      <option key={id} value={id}>
+                        {playerMap.get(id)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setHasBatsmanBeenChangedThisOver(true)}
+                className="mt-3 w-full"
+              >
+                Done
+              </Button>
+            </div>
+          )}
+
           {/* A. WICKET FORM OVERLAY */}
           {showWicketForm ? (
             <form onSubmit={handleLogWicket} className="grid gap-3">
@@ -1185,21 +1441,31 @@ export function LiveScoringPage() {
               )}
 
               {/* Selector for the batsman who enters the crease next */}
-              {inningsState.wickets + 1 < maxWickets && remainingBatsmen.length > 0 ? (
-                <SelectField
-                  label="Incoming Batsman"
-                  value={incomingBatsmanId || ''}
-                  onChange={(e) => setIncomingBatsmanId(e.target.value)}
-                  required
-                >
-                  <option value="">Select incoming batsman</option>
-                  {remainingBatsmen.map((id) => (
-                    <option key={id} value={id}>
-                      {playerMap.get(id)}
-                    </option>
-                  ))}
-                </SelectField>
-              ) : null}
+              {(() => {
+                // BUG 2 FIX: Always recalculate from current match state, never use stale cached list
+                const battersWhoHaveBatted = Object.keys(inningsState.battingStats);
+                const freshAvailableBatters = battingSquadIds.filter((id) => !battersWhoHaveBatted.includes(id));
+                const newWickets = inningsState.wickets + 1;
+                const isAllOut = newWickets >= maxWickets;
+
+                if (isAllOut || freshAvailableBatters.length === 0) return null;
+
+                return (
+                  <SelectField
+                    label="Incoming Batsman"
+                    value={incomingBatsmanId || ''}
+                    onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select incoming batsman</option>
+                    {freshAvailableBatters.map((id) => (
+                      <option key={id} value={id}>
+                        {playerMap.get(id)}
+                      </option>
+                    ))}
+                  </SelectField>
+                );
+              })()}
 
               <div className="flex gap-2 mt-2">
                 <Button type="submit" variant="danger" className="flex-1" disabled={createBallEvent.isPending}>
@@ -1335,6 +1601,16 @@ export function LiveScoringPage() {
                       key={type}
                       type="button"
                       onClick={() => {
+                        // BUG 1 FIX: Reset all wicket state before opening extra form
+                        setShowWicketForm(false);
+                        setWicketType('bowled');
+                        setDismissedPlayerId('');
+                        setFielderId('');
+                        setWicketRunsBatter('0');
+                        setWicketRunsExtra('0');
+                        setWicketExtraType('');
+                        setWicketIsLegal(true);
+                        // Now open extra form
                         setSelectedExtraType(type);
                         setExtraRunsExtra(type === 'wide' || type === 'no_ball' ? '1' : '1');
                         setExtraRunsBatter('0');

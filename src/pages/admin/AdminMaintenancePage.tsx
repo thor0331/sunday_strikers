@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useParentMatches } from '../../hooks/useMatches';
 import { useSeasons } from '../../hooks/useSeasons';
-import { matchRepository } from '../../repositories/matchRepository';
+import { rebuildAllStatistics, recalculateSeasonStats } from '../../services/statisticsService';
 
 export function AdminMaintenancePage() {
   const queryClient = useQueryClient();
@@ -28,25 +28,55 @@ export function AdminMaintenancePage() {
   }
 
   async function handleRebuildStatistics() {
-    if (!window.confirm('This will force a recalculation of all player statistics by toggling each completed match status. This may take a while.\n\nContinue?')) return;
+    if (!window.confirm('This will recalculate all player statistics from ball event data for every completed match. This may take a while.\n\nContinue?')) return;
     setRunning(true);
     clearLog();
-    const completedMatches = matches.filter((m) => m.status === 'completed');
-    addLog(`Found ${completedMatches.length} completed matches to rebuild.`);
+    addLog('Starting full statistics rebuild...');
 
-    for (let i = 0; i < completedMatches.length; i++) {
-      const m = completedMatches[i];
-      addLog(`Processing ${i + 1}/${completedMatches.length}: ${m.match_name}...`);
-      try {
-        await matchRepository.update(m.id, { status: 'draft' });
-        await matchRepository.update(m.id, { status: 'completed' });
-      } catch (err) {
-        addLog(`Error processing ${m.match_name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    try {
+      const result = await rebuildAllStatistics((progress) => {
+        addLog(progress.message);
+      });
+
+      addLog(`\nRebuild complete.`);
+      addLog(`Seasons processed: ${result.seasonsProcessed}`);
+      addLog(`Player-season records updated: ${result.playersUpdated}`);
+
+      if (result.errors.length > 0) {
+        addLog(`\nErrors encountered:`);
+        for (const err of result.errors) {
+          addLog(`  - ${err}`);
+        }
       }
+
+      await queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
+      addLog('Statistics cache refreshed.');
+    } catch (err) {
+      addLog(`FATAL: Rebuild failed - ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('[Maintenance] Statistics rebuild failed:', err);
     }
 
-    await queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
-    addLog('Rebuild complete. Statistics cache refreshed.');
+    setRunning(false);
+  }
+
+  async function handleRebuildSeason(seasonId: string, seasonName: string) {
+    if (!window.confirm(`Recalculate statistics for "${seasonName}"?`)) return;
+    setRunning(true);
+    clearLog();
+    addLog(`Starting rebuild for season: ${seasonName}...`);
+
+    try {
+      await recalculateSeasonStats(seasonId, (progress) => {
+        addLog(progress.message);
+      });
+      addLog(`Season "${seasonName}" statistics rebuilt successfully.`);
+      await queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
+      addLog('Statistics cache refreshed.');
+    } catch (err) {
+      addLog(`ERROR: Failed to rebuild season "${seasonName}" - ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error(`[Maintenance] Season rebuild failed for ${seasonName}:`, err);
+    }
+
     setRunning(false);
   }
 
@@ -101,6 +131,28 @@ export function AdminMaintenancePage() {
           </Button>
         </div>
       </PagePanel>
+
+      {/* Per-Season Rebuild */}
+      {seasons.length > 0 && (
+        <PagePanel title="Rebuild by Season">
+          <p className="text-xs text-slate-500 mb-3">
+            Recalculate statistics for a specific season. Useful when only recent matches need updating.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {seasons.map((season) => (
+              <button
+                key={season.id}
+                type="button"
+                onClick={() => handleRebuildSeason(season.id, season.name)}
+                disabled={running}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {season.name}
+              </button>
+            ))}
+          </div>
+        </PagePanel>
+      )}
 
       {/* Activity Log */}
       {log.length > 0 && (
