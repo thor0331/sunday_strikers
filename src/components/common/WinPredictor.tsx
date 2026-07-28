@@ -28,7 +28,8 @@ export function WinPredictor({
     return 'bg-red-400';
   };
 
-  if (targetRuns <= 0 || oversUsed <= 0) return null;
+  // BUG FIX: Show predictor even at innings start (oversUsed=0) when chasing
+  if (targetRuns <= 0 || totalOvers <= 0) return null;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -36,14 +37,14 @@ export function WinPredictor({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-700 truncate max-w-[120px]">{battingTeamName}</span>
-          <span className="font-bold text-emerald-600">{battingProb}%</span>
+          <span className={`font-bold ${battingProb >= 50 ? 'text-emerald-600' : battingProb >= 30 ? 'text-amber-600' : 'text-red-600'}`}>{battingProb}%</span>
         </div>
         <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
           <div className={`h-full rounded-full transition-all duration-500 ${getColor(battingProb)}`} style={{ width: `${battingProb}%` }} />
         </div>
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-700 truncate max-w-[120px]">{bowlingTeamName}</span>
-          <span className="font-bold text-slate-600">{bowlingProb}%</span>
+          <span className={`font-bold ${bowlingProb >= 50 ? 'text-emerald-600' : bowlingProb >= 30 ? 'text-amber-600' : 'text-red-600'}`}>{bowlingProb}%</span>
         </div>
         <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
           <div className={`h-full rounded-full transition-all duration-500 ${getColor(bowlingProb)}`} style={{ width: `${bowlingProb}%` }} />

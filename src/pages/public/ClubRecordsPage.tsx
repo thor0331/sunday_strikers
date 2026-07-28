@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { computeHallOfFame } from '../../utils/analytics';
 import { CircularAvatar } from '../../components/common/CircularAvatar';
 import { GlassCard } from '../../components/common/GlassCard';
-import { Trophy, Flame, Target, Star, Award, TrendingUp, Users, Zap, Shield } from 'lucide-react';
+import { Trophy, Flame, Target, Star, TrendingUp, Users, Zap } from 'lucide-react';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import type { ReactNode } from 'react';
 import type { Match, BallEvent } from '../../types/models';
@@ -81,21 +81,8 @@ export function ClubRecordsPage() {
       });
     }
 
-    // Best Bowling Figures
-    const completedMatches = matches.filter(m => m.status === 'completed');
-    const bestBowler = mostWickets;
-    if (bestBowler) {
-      result.push({
-        label: 'Best Bowling Figures',
-        value: `${bestBowler.wickets} wkts`,
-        playerName: playerMap.get(bestBowler.player_id) ?? 'Unknown',
-        playerPhoto: playerPhotoMap.get(bestBowler.player_id) ?? null,
-        playerId: bestBowler.player_id,
-        icon: <Award className="w-5 h-5" />,
-        gradient: 'from-blue-400 to-blue-600',
-        subtitle: `${bestBowler.runs_conceded} runs conceded`,
-      });
-    }
+    // Best Bowling Figures — removed: player_statistics doesn't store per-match bowling figures
+    // TODO: Compute best single-match bowling from ball_events when data model supports it
 
     // Most POTM Awards
     const potmCounts: Record<string, number> = {};
@@ -128,29 +115,8 @@ export function ClubRecordsPage() {
       subtitle: 'Best batting partnership',
     });
 
-    // Highest Team Score
-    let highestTeamScore = { runs: 0, team: '' };
-    for (const match of completedMatches) {
-      if (match.result_text) {
-        const scoreMatch = match.result_text.match(/(\d+)/);
-        if (scoreMatch) {
-          const score = parseInt(scoreMatch[1], 10);
-          if (score > highestTeamScore.runs) {
-            highestTeamScore = { runs: score, team: match.match_name };
-          }
-        }
-      }
-    }
-    result.push({
-      label: 'Highest Team Score',
-      value: highestTeamScore.runs > 0 ? highestTeamScore.runs : '-',
-      playerName: highestTeamScore.team || 'N/A',
-      playerPhoto: null,
-      playerId: null,
-      icon: <Shield className="w-5 h-5" />,
-      gradient: 'from-teal-400 to-teal-600',
-      subtitle: highestTeamScore.runs > 0 ? 'Total runs in a match' : 'No data yet',
-    });
+    // Highest Team Score — removed: result_text regex parsing was incorrect
+    // TODO: Compute from innings data when available
 
     return result;
   }, [stats, matches, playerMap, playerPhotoMap]);

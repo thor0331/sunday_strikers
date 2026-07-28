@@ -337,18 +337,29 @@ export function computeWinProbability(
   if (targetRuns <= 0 || totalOvers <= 0) return 50;
 
   const runsNeeded = targetRuns - currentRuns;
-  const ballsRemaining = (totalOvers * 6) - oversUsed;
-
   if (runsNeeded <= 0) return 100;
-  if (ballsRemaining <= 0 || wicketsLost >= totalWickets) return 0;
-  if (currentRuns <= 0) return 0;
 
-  const crr = oversUsed > 0 ? currentRuns / (oversUsed / 6) : 0;
-  const rrr = runsNeeded / (ballsRemaining / 6);
+  // BUG FIX: Convert oversUsed (decimal like 5.3 = 5 overs 3 balls) to actual balls
+  const ballsUsed = Math.floor(oversUsed) * 6 + Math.round((oversUsed % 1) * 10);
+  const totalBalls = totalOvers * 6;
+  const ballsRemaining = totalBalls - ballsUsed;
+
+  if (ballsRemaining <= 0 || wicketsLost >= totalWickets) return 0;
+
+  // BUG FIX: At innings start (0 runs, 0 balls), return a baseline probability
+  // based on wickets in hand and overs available
+  if (currentRuns <= 0 && ballsUsed <= 0) {
+    // Baseline: team has all wickets and all overs — give them a fair chance
+    const wicketFactor = Math.max(0, 1 - (wicketsLost / totalWickets));
+    return Math.round(40 + wicketFactor * 20); // 40-60% depending on wickets
+  }
+
+  const crr = ballsUsed > 0 ? (currentRuns * 6) / ballsUsed : 0;
+  const rrr = ballsRemaining > 0 ? (runsNeeded * 6) / ballsRemaining : 999;
 
   const runFactor = rrr > 0 ? Math.max(0, Math.min(1, crr / rrr)) : 1;
   const wicketFactor = Math.max(0, 1 - (wicketsLost / totalWickets));
-  const ballFactor = Math.min(1, ballsRemaining / (totalOvers * 6));
+  const ballFactor = Math.min(1, ballsRemaining / totalBalls);
 
   const probability = (runFactor * 0.5 + wicketFactor * 0.3 + ballFactor * 0.2) * 100;
   return Math.round(Math.max(0, Math.min(100, probability)));

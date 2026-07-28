@@ -43,10 +43,20 @@ export function MatchSummaryPage() {
     if (!innings1 || !match) return null;
     const batting = matchPlayers.filter((mp) => mp.team === innings1.batting_team);
     const battingOrder = batting.map((mp) => mp.player_id);
-    const strikerIndex = batting.findIndex((mp) => mp.is_captain);
-    const striker = strikerIndex >= 0 ? batting[strikerIndex].player_id : batting[0]?.player_id;
-    const nonStrikerIndex = strikerIndex >= 0 ? (strikerIndex + 1) % batting.length : 1;
-    const nonStriker = batting[nonStrikerIndex]?.player_id;
+
+    // BUG FIX: Use first ball event to determine opening pair, not captain assumption
+    let striker: string | undefined;
+    let nonStriker: string | undefined;
+
+    if (ballEvents1.length > 0) {
+      const firstEvt = [...ballEvents1].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
+      striker = firstEvt.strikerId;
+      nonStriker = firstEvt.nonStrikerId;
+    } else {
+      // Fallback: use first two players in batting order
+      striker = battingOrder[0];
+      nonStriker = battingOrder[1];
+    }
 
     if (!striker || !nonStriker) return null;
 
@@ -71,10 +81,20 @@ export function MatchSummaryPage() {
     if (!innings2 || !match) return null;
     const batting = matchPlayers.filter((mp) => mp.team === innings2.batting_team);
     const battingOrder = batting.map((mp) => mp.player_id);
-    const strikerIndex = batting.findIndex((mp) => mp.is_captain);
-    const striker = strikerIndex >= 0 ? batting[strikerIndex].player_id : batting[0]?.player_id;
-    const nonStrikerIndex = strikerIndex >= 0 ? (strikerIndex + 1) % batting.length : 1;
-    const nonStriker = batting[nonStrikerIndex]?.player_id;
+
+    // BUG FIX: Use first ball event to determine opening pair, not captain assumption
+    let striker: string | undefined;
+    let nonStriker: string | undefined;
+
+    if (ballEvents2.length > 0) {
+      const firstEvt = [...ballEvents2].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
+      striker = firstEvt.strikerId;
+      nonStriker = firstEvt.nonStrikerId;
+    } else {
+      // Fallback: use first two players in batting order
+      striker = battingOrder[0];
+      nonStriker = battingOrder[1];
+    }
 
     if (!striker || !nonStriker) return null;
 

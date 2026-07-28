@@ -21,6 +21,7 @@ import type { BallEvent, TeamSide, ExtraType, WicketType } from '../../types/mod
 import { supabase } from '../../services/supabaseClient';
 import { updateStatsForCompletedMatch } from '../../services/statisticsService';
 import { useState, type FormEvent, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Undo2, RotateCcw, Skull, ChevronLeft, Target, Gauge, TrendingUp, Zap, Trophy } from 'lucide-react';
 import { WinPredictor } from '../../components/common/WinPredictor';
@@ -84,6 +85,7 @@ export function LiveScoringPage() {
   const setMatchInProgress = useSetMatchInProgress();
   const createBallEvent = useCreateBallEvent();
   const undoLastBall = useUndoLastBall();
+  const queryClient = useQueryClient();
 
   // Innings startup local states
   const [openingStrikerId, setOpeningStrikerId] = useState('');
@@ -135,7 +137,7 @@ export function LiveScoringPage() {
   }, [inningsList]);
 
   // Fetch ball events for the active innings
-  const { data: ballEvents = [], isLoading: eventsLoading } = useBallEvents(activeInnings?.id ?? null);
+  const { data: ballEvents = [], isLoading: eventsLoading, isFetching: eventsFetching } = useBallEvents(activeInnings?.id ?? null);
 
   // Batting and Bowling squads for active innings
   const squads = useMemo(() => {
@@ -193,12 +195,34 @@ export function LiveScoringPage() {
     }
   }, [activeInnings, match, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, battingSquadIds, ballEvents, incomingBatsmanId]);
 
-  // Remaining batsmen who haven't batted yet
+  // Remaining batsmen who haven't batted yet (for swap dropdowns, uses battingStats)
+  // NOTE: eligibleIncomingBatsmen is the correct source for incoming selection after wickets.
   const remainingBatsmen = useMemo(() => {
     if (!inningsState) return battingSquadIds;
     const battedIds = Object.keys(inningsState.battingStats);
     return battingSquadIds.filter((id) => !battedIds.includes(id));
   }, [inningsState, battingSquadIds]);
+
+  // Dismissed player IDs derived directly from ball events (source of truth)
+  const dismissedPlayerIds = useMemo(() => {
+    const dismissed = new Set<string>();
+    for (const event of ballEvents) {
+      if (event.isWicket && event.dismissedPlayerId) {
+        dismissed.add(event.dismissedPlayerId);
+      }
+    }
+    return dismissed;
+  }, [ballEvents]);
+
+  // Eligible incoming batsmen: Playing XI − Current Striker − Current Non-Striker − Dismissed Players
+  const eligibleIncomingBatsmen = useMemo(() => {
+    if (!inningsState) return battingSquadIds;
+    const exclude = new Set<string>();
+    if (inningsState.strikerId) exclude.add(inningsState.strikerId);
+    if (inningsState.nonStrikerId) exclude.add(inningsState.nonStrikerId);
+    for (const id of dismissedPlayerIds) exclude.add(id);
+    return battingSquadIds.filter((id) => !exclude.has(id));
+  }, [inningsState?.strikerId, inningsState?.nonStrikerId, dismissedPlayerIds, battingSquadIds]);
 
   // Set opening bowler from first event bowler, or select state
   const lastEvent = useMemo(() => {
@@ -406,10 +430,6 @@ export function LiveScoringPage() {
     event.preventDefault();
     if (!activeInnings || !inningsState || !currentBowlerId || !dismissedPlayerId) return;
 
-    // BUG 2 FIX: Recalculate available batters from current match state (never use stale state)
-    const battersWhoHaveBatted = Object.keys(inningsState.battingStats);
-    const currentAvailableBatters = battingSquadIds.filter((id) => !battersWhoHaveBatted.includes(id));
-
     const overNumber = Math.floor(inningsState.legalBalls / 6);
     const ballInOver = (inningsState.legalBalls % 6) + 1;
     const runsB = Number(wicketRunsBatter);
@@ -420,8 +440,17 @@ export function LiveScoringPage() {
     const newWickets = inningsState.wickets + 1;
     const isAllOut = newWickets >= maxWickets;
 
-    // Only require incoming batsman selection if it's NOT all-out AND there are remaining batsmen
-    if (!isAllOut && currentAvailableBatters.length > 0 && !incomingBatsmanId) {
+    // Use eligibleIncomingBatsmen (Playing XI − Striker − NonStriker − Dismissed) as source of truth
+    console.log('[Wicket Flow] Playing XI:', battingSquadIds);
+    console.log('[Wicket Flow] Current Striker:', inningsState.strikerId, playerMap.get(inningsState.strikerId ?? ''));
+    console.log('[Wicket Flow] Current Non-Striker:', inningsState.nonStrikerId, playerMap.get(inningsState.nonStrikerId ?? ''));
+    console.log('[Wicket Flow] Dismissed Players:', [...dismissedPlayerIds]);
+    console.log('[Wicket Flow] Eligible Incoming Players:', eligibleIncomingBatsmen.map((id) => `${id} (${playerMap.get(id)})`));
+    console.log('[Wicket Flow] Selected Incoming Batsman:', incomingBatsmanId, playerMap.get(incomingBatsmanId ?? ''));
+    console.log('[Wicket Flow] Max Wickets:', maxWickets, 'New Wickets:', newWickets, 'Is All Out:', isAllOut);
+
+    // Only require incoming batsman selection if it's NOT all-out AND there are eligible incoming batsmen
+    if (!isAllOut && eligibleIncomingBatsmen.length > 0 && !incomingBatsmanId) {
       alert('Please select an incoming batsman for the next delivery.');
       return;
     }
@@ -483,6 +512,11 @@ export function LiveScoringPage() {
         ? ballEvents.filter((e) => e.overNumber === lastBall.overNumber && e.isLegalDelivery).length === 1
         : false;
 
+      // BUG 4 FIX: Before undo, capture the bowler from the ball before the one being undone
+      // so we can restore currentBowlerId if needed
+      const sortedEvents = [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+      const previousBall = sortedEvents.length >= 2 ? sortedEvents[sortedEvents.length - 2] : null;
+
       await undoLastBall.mutateAsync({
         inningsId: activeInnings.id,
         context: {
@@ -496,14 +530,27 @@ export function LiveScoringPage() {
         }
       });
 
-      // Clear local states that might be stale
+      // Clear all form states that might be stale
       setIncomingBatsmanId(null);
       setShowWicketForm(false);
+      setShowExtraForm(false);
+      setSelectedExtraType(null);
+      setWicketType('bowled');
+      setDismissedPlayerId('');
+      setFielderId('');
+      setWicketRunsBatter('0');
+      setWicketRunsExtra('0');
+      setWicketExtraType('');
+      setWicketIsLegal(true);
 
-      // If undoing the first legal ball of the over, re-enable player changes
+      // BUG 4 FIX: If undoing the first legal ball of the over, restore bowler to previous over's bowler
       if (isUndoingFirstBallOfOver) {
         setHasBowlerBeenChangedThisOver(false);
         setHasBatsmanBeenChangedThisOver(false);
+        // Restore bowler to whoever bowled the previous ball (start of previous over)
+        if (previousBall) {
+          setCurrentBowlerId(previousBall.bowlerId);
+        }
       }
 
       // If undoing a wicket, re-enable batsman changes (the dismissed player returns)
@@ -686,21 +733,77 @@ export function LiveScoringPage() {
 
       const innings2Runs = inningsState.totalRuns;
 
+      // BUG FIX: Also recalculate Innings 2 state from events to avoid stale data
+      let innings2CalcRuns = innings2Runs;
+      try {
+        const inn2Events = await supabase
+          .from('ball_events')
+          .select('*')
+          .eq('innings_id', innings2.id)
+          .order('sequence_number', { ascending: true });
+
+        if (inn2Events.data && inn2Events.data.length > 0) {
+          const events2 = inn2Events.data.map((row) => ({
+            id: row.id,
+            matchId: row.match_id,
+            inningsId: row.innings_id,
+            sequenceNumber: row.sequence_number,
+            overNumber: row.over_number,
+            ballInOver: row.ball_in_over,
+            strikerId: row.striker_id,
+            nonStrikerId: row.non_striker_id,
+            bowlerId: row.bowler_id,
+            runsBatter: row.runs_batter,
+            runsExtra: row.runs_extra,
+            extraType: row.extra_type,
+            isWicket: row.is_wicket,
+            wicketType: row.wicket_type,
+            dismissedPlayerId: row.dismissed_player_id,
+            fielderId: row.fielder_id,
+            isLegalDelivery: row.is_legal_delivery,
+            notes: row.notes,
+            createdBy: row.created_by,
+            createdAt: row.created_at
+          } as BallEvent));
+
+          const firstEvt2 = events2[0];
+          const inn2BattingSquad = matchPlayers.filter((mp) => mp.team === innings2.batting_team);
+          const inn2BattingOrder = inn2BattingSquad.map((mp) => mp.player_id);
+
+          const inn2Context: ScoringContext = {
+            inningsId: innings2.id,
+            openingStrikerId: firstEvt2.strikerId,
+            openingNonStrikerId: firstEvt2.nonStrikerId,
+            battingOrder: inn2BattingOrder,
+            oversPerInnings: match.overs_per_innings,
+            playersPerTeam: match.players_per_team,
+            targetRuns: innings2.target_runs
+          };
+
+          const inn2State = calculateInningsState(inn2Context, events2);
+          innings2CalcRuns = inn2State.totalRuns;
+        }
+      } catch (error) {
+        console.error('[Match Completion] Error recalculating Innings 2:', error);
+        // Fall back to inningsState.totalRuns
+        innings2CalcRuns = innings2Runs;
+      }
+
       let winner: TeamSide | null = null;
       let resultText = '';
 
-      console.log('[Match Completion] Comparing scores - Innings 1:', innings1Runs, 'Innings 2:', innings2Runs, 'Target:', innings2.target_runs);
+      console.log('[Match Completion] Comparing scores - Innings 1:', innings1Runs, 'Innings 2:', innings2CalcRuns, 'Target:', innings2.target_runs);
 
-      if (innings2Runs >= innings2.target_runs!) {
+      if (innings2CalcRuns >= innings2.target_runs!) {
         // Innings 2 won (Chasing team)
         winner = innings2.batting_team;
         const wicketsLeft = maxWickets - inningsState.wickets;
         const teamName = winner === 'team_a' ? match.team_a_name : match.team_b_name;
         resultText = `${teamName} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
-      } else if (innings2Runs < innings1Runs) {
+      } else if (innings2CalcRuns < innings1Runs) {
         // Innings 1 won (Defending team)
         winner = innings1!.batting_team;
-        const runsMargin = innings1Runs - innings2Runs;
+        const runsMargin = innings1Runs - innings2CalcRuns;
         const teamName = winner === 'team_a' ? match.team_a_name : match.team_b_name;
         resultText = `${teamName} won by ${runsMargin} run${runsMargin !== 1 ? 's' : ''}`;
       } else {
@@ -724,6 +827,14 @@ export function LiveScoringPage() {
         await updateStatsForCompletedMatch(match.id, (msg) => {
           console.log('[Statistics]', msg);
         });
+
+        // BUG 3 FIX: Invalidate stats queries AFTER recomputation completes
+        // (useCompleteMatch.onSuccess fires before updateStatsForCompletedMatch finishes)
+        void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
+        void queryClient.invalidateQueries({ queryKey: ['leaderboards'] });
+        void queryClient.invalidateQueries({ queryKey: ['hall-of-fame'] });
+        void queryClient.invalidateQueries({ queryKey: ['season-awards'] });
+        void queryClient.invalidateQueries({ queryKey: ['completed-matches'] });
       } catch (statsError) {
         // Log but do not block match completion
         console.error('[Statistics] Failed to update player statistics after match completion:', statsError);
@@ -760,10 +871,14 @@ export function LiveScoringPage() {
   // Auto-fill wicket dismissed player options and reset incoming batsman
   useEffect(() => {
     if (showWicketForm && inningsState) {
+      console.log('[Wicket Form Open] Auto-filling dismissed player to striker:', inningsState.strikerId);
       setDismissedPlayerId(inningsState.strikerId || '');
       setIncomingBatsmanId(null);
     }
   }, [showWicketForm, inningsState]);
+
+  // NOTE: Removed eventsFetching re-sync effect that was overwriting user's dismissed player selection
+  // every 10 seconds during background refetch. The showWicketForm effect above handles initial sync.
 
   // Reset change tracking flags when over completes
   useEffect(() => {
@@ -1442,13 +1557,10 @@ export function LiveScoringPage() {
 
               {/* Selector for the batsman who enters the crease next */}
               {(() => {
-                // BUG 2 FIX: Always recalculate from current match state, never use stale cached list
-                const battersWhoHaveBatted = Object.keys(inningsState.battingStats);
-                const freshAvailableBatters = battingSquadIds.filter((id) => !battersWhoHaveBatted.includes(id));
                 const newWickets = inningsState.wickets + 1;
                 const isAllOut = newWickets >= maxWickets;
 
-                if (isAllOut || freshAvailableBatters.length === 0) return null;
+                if (isAllOut || eligibleIncomingBatsmen.length === 0) return null;
 
                 return (
                   <SelectField
@@ -1458,7 +1570,7 @@ export function LiveScoringPage() {
                     required
                   >
                     <option value="">Select incoming batsman</option>
-                    {freshAvailableBatters.map((id) => (
+                    {eligibleIncomingBatsmen.map((id) => (
                       <option key={id} value={id}>
                         {playerMap.get(id)}
                       </option>
@@ -1552,7 +1664,7 @@ export function LiveScoringPage() {
                   </option>
                 ))}
               </SelectField>
-              <Button type="button" onClick={() => {}} disabled={!currentBowlerId || currentBowlerId === lastEvent?.bowlerId}>
+              <Button type="button" onClick={() => setHasBowlerBeenChangedThisOver(true)} disabled={!currentBowlerId || currentBowlerId === lastEvent?.bowlerId}>
                 Confirm Bowler
               </Button>
             </div>
@@ -1629,7 +1741,12 @@ export function LiveScoringPage() {
               <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowWicketForm(true)}
+                  onClick={() => {
+                    if (eventsFetching) {
+                      console.log('[Wicket Button] Data is stale (fetching), waiting for fresh state...');
+                    }
+                    setShowWicketForm(true);
+                  }}
                   className="min-h-12 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white font-bold shadow-sm transition-all duration-150 active:scale-[0.97] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                   disabled={createBallEvent.isPending}
                 >

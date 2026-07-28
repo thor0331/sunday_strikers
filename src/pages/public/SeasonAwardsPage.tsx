@@ -40,7 +40,7 @@ export function SeasonAwardsPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{award.category}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <CircularAvatar src={playerPhotoMap.get(award.playerId)} alt={award.playerName} size="sm" />
-                      <Link to={`/players`} className="font-bold text-slate-800 hover:text-teal-600 transition-colors truncate">
+                      <Link to={`/players/${award.playerId}`} className="font-bold text-slate-800 hover:text-teal-600 transition-colors truncate">
                         {award.playerName}
                       </Link>
                     </div>
