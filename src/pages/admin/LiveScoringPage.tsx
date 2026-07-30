@@ -125,6 +125,29 @@ export function LiveScoringPage() {
   // Maps player ID to display name
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
 
+  // === INSTRUMENTATION: Render-time change tracker for incomingBatsmanId ===
+  const prevIncomingBatsmanIdRef = useRef<string | null>(null);
+  if (prevIncomingBatsmanIdRef.current !== incomingBatsmanId) {
+    console.log(`[INSTRUMENT][RENDER CHANGE] incomingBatsmanId: "${prevIncomingBatsmanIdRef.current}" -> "${incomingBatsmanId}"`);
+    console.trace('[INSTRUMENT][RENDER CHANGE] Stack trace for incomingBatsmanId change');
+    prevIncomingBatsmanIdRef.current = incomingBatsmanId;
+  }
+  const prevDismissedPlayerIdRef = useRef<string>('');
+  if (prevDismissedPlayerIdRef.current !== dismissedPlayerId) {
+    console.log(`[INSTRUMENT][RENDER CHANGE] dismissedPlayerId: "${prevDismissedPlayerIdRef.current}" -> "${dismissedPlayerId}"`);
+    console.trace('[INSTRUMENT][RENDER CHANGE] Stack trace for dismissedPlayerId change');
+    prevDismissedPlayerIdRef.current = dismissedPlayerId;
+  }
+  const prevShowWicketFormRef = useRef(false);
+  if (prevShowWicketFormRef.current !== showWicketForm) {
+    console.log(`[INSTRUMENT][RENDER CHANGE] showWicketForm: ${prevShowWicketFormRef.current} -> ${showWicketForm}`);
+    console.trace('[INSTRUMENT][RENDER CHANGE] Stack trace for showWicketForm change');
+    prevShowWicketFormRef.current = showWicketForm;
+  }
+
+  console.log(`[INSTRUMENT][RENDER] incomingBatsmanId = "${incomingBatsmanId}", dismissedPlayerId = "${dismissedPlayerId}", showWicketForm = ${showWicketForm}`);
+  // === END INSTRUMENTATION ===
+
   // Determine active innings
   const activeInnings = useMemo(() => {
     if (inningsList.length === 0) return null;
@@ -167,6 +190,7 @@ export function LiveScoringPage() {
 
   // Calculate innings state
   const inningsState = useMemo(() => {
+    console.log('[INSTRUMENT][inningsState useMemo] RECALCULATING. incomingBatsmanId=', incomingBatsmanId, 'ballEvents.length=', ballEvents.length);
     if (!activeInnings || !match || !resolvedOpeningStrikerId || !resolvedOpeningNonStrikerId) return null;
 
     const battingOrder = determineBattingOrder(
@@ -174,7 +198,7 @@ export function LiveScoringPage() {
       ballEvents,
       resolvedOpeningStrikerId,
       resolvedOpeningNonStrikerId,
-      incomingBatsmanId
+      null
     );
 
     const context: ScoringContext = {
@@ -193,7 +217,7 @@ export function LiveScoringPage() {
       console.error('Error calculating innings state:', err);
       return null;
     }
-  }, [activeInnings, match, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, battingSquadIds, ballEvents, incomingBatsmanId]);
+  }, [activeInnings, match, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, battingSquadIds, ballEvents]);
 
   // Remaining batsmen who haven't batted yet (for swap dropdowns, uses battingStats)
   // NOTE: eligibleIncomingBatsmen is the correct source for incoming selection after wickets.
@@ -216,12 +240,15 @@ export function LiveScoringPage() {
 
   // Eligible incoming batsmen: Playing XI − Current Striker − Current Non-Striker − Dismissed Players
   const eligibleIncomingBatsmen = useMemo(() => {
+    console.log('[INSTRUMENT][eligibleIncomingBatsmen] RECALCULATING. inningsState striker=', inningsState?.strikerId, 'nonStriker=', inningsState?.nonStrikerId);
     if (!inningsState) return battingSquadIds;
     const exclude = new Set<string>();
     if (inningsState.strikerId) exclude.add(inningsState.strikerId);
     if (inningsState.nonStrikerId) exclude.add(inningsState.nonStrikerId);
     for (const id of dismissedPlayerIds) exclude.add(id);
-    return battingSquadIds.filter((id) => !exclude.has(id));
+    const result = battingSquadIds.filter((id) => !exclude.has(id));
+    console.log('[INSTRUMENT][eligibleIncomingBatsmen] Result:', result.map(id => ({ id, name: playerMap.get(id) })));
+    return result;
   }, [inningsState?.strikerId, inningsState?.nonStrikerId, dismissedPlayerIds, battingSquadIds]);
 
   // Set opening bowler from first event bowler, or select state
@@ -232,6 +259,7 @@ export function LiveScoringPage() {
 
   // Auto-set bowler on load from events
   useEffect(() => {
+    console.log('[INSTRUMENT][USEFFECT #1] FIRED. deps: currentBowlerId=', inningsState?.currentBowlerId);
     if (inningsState?.currentBowlerId) {
       setCurrentBowlerId(inningsState.currentBowlerId);
     } else if (lastEvent?.bowlerId) {
@@ -243,11 +271,14 @@ export function LiveScoringPage() {
 
   // Clear incoming batsman once they are in crease and get recorded in next ball event
   useEffect(() => {
+    console.log('[INSTRUMENT][USEFFECT #2] FIRED. deps: incomingBatsmanId=', incomingBatsmanId, 'inningsState=', !!inningsState, 'ballEvents.length=', ballEvents.length);
     if (incomingBatsmanId && inningsState) {
       const isAtCrease = inningsState.strikerId === incomingBatsmanId || inningsState.nonStrikerId === incomingBatsmanId;
       // If they are at crease and have been saved in ballEvents, we can clear the client-override state
       const hasFacedBall = ballEvents.some((be) => be.strikerId === incomingBatsmanId || be.nonStrikerId === incomingBatsmanId);
       if (isAtCrease && hasFacedBall) {
+        console.log('[INSTRUMENT][USEFFECT #2] About to clear incomingBatsmanId (at crease + faced ball)');
+        console.trace('[INSTRUMENT][USEFFECT #2] Stack: setIncomingBatsmanId(null)');
         setIncomingBatsmanId(null);
       }
     }
@@ -313,6 +344,8 @@ export function LiveScoringPage() {
     setCurrentBowlerId(openingBowlerId);
     setHasBowlerBeenChangedThisOver(false);
     setHasBatsmanBeenChangedThisOver(false);
+    console.log('[INSTRUMENT][handleStartInnings] setIncomingBatsmanId(null)');
+    console.trace('[INSTRUMENT][handleStartInnings] Stack');
     setIncomingBatsmanId(null);
   }
 
@@ -321,8 +354,12 @@ export function LiveScoringPage() {
     if (!activeInnings || !inningsState || !currentBowlerId) return;
 
     // BUG 1 FIX: Reset all wicket-related state to prevent stale state leakage
+    console.log('[SET SHOW WICKET] handleLogBall: setting showWicketForm = false');
+    console.trace('[SET SHOW WICKET] Stack');
     setShowWicketForm(false);
     setWicketType('bowled');
+    console.log('[SET DISMISSED] handleLogBall reset to empty');
+    console.trace('[SET DISMISSED] Stack');
     setDismissedPlayerId('');
     setFielderId('');
     setWicketRunsBatter('0');
@@ -362,6 +399,8 @@ export function LiveScoringPage() {
       }
     });
 
+    console.log('[INSTRUMENT][handleLogBall] setIncomingBatsmanId(null) after logging regular ball');
+    console.trace('[INSTRUMENT][handleLogBall] Stack');
     setIncomingBatsmanId(null);
     emitScoreEvent('runs', `+${runsBatter}`);
   }
@@ -373,6 +412,8 @@ export function LiveScoringPage() {
 
     // BUG 1 FIX: Reset all wicket-related state before creating the event
     setWicketType('bowled');
+    console.log('[SET DISMISSED] handleLogExtra reset to empty');
+    console.trace('[SET DISMISSED] Stack');
     setDismissedPlayerId('');
     setFielderId('');
     setWicketRunsBatter('0');
@@ -422,6 +463,8 @@ export function LiveScoringPage() {
     setSelectedExtraType(null);
     setExtraRunsBatter('0');
     setExtraRunsExtra('1');
+    console.log('[INSTRUMENT][handleLogExtra] setIncomingBatsmanId(null) after logging extra');
+    console.trace('[INSTRUMENT][handleLogExtra] Stack');
     setIncomingBatsmanId(null);
   }
 
@@ -489,14 +532,20 @@ export function LiveScoringPage() {
 
     emitScoreEvent('wicket', 'WICKET');
 
+    console.log('[SET SHOW WICKET] handleLogWicket: setting showWicketForm = false');
+    console.trace('[SET SHOW WICKET] Stack');
     setShowWicketForm(false);
     setWicketType('bowled');
+    console.log('[SET DISMISSED] handleLogWicket reset to empty');
+    console.trace('[SET DISMISSED] Stack');
     setDismissedPlayerId('');
     setFielderId('');
     setWicketRunsBatter('0');
     setWicketRunsExtra('0');
     setWicketExtraType('');
     setWicketIsLegal(true);
+    console.log('[INSTRUMENT][handleLogWicket] setIncomingBatsmanId(null) after submitting wicket');
+    console.trace('[INSTRUMENT][handleLogWicket] Stack');
     setIncomingBatsmanId(null);
   }
 
@@ -531,11 +580,17 @@ export function LiveScoringPage() {
       });
 
       // Clear all form states that might be stale
+      console.log('[INSTRUMENT][handleUndo] setIncomingBatsmanId(null) after undo');
+      console.trace('[INSTRUMENT][handleUndo] Stack');
       setIncomingBatsmanId(null);
+      console.log('[SET SHOW WICKET] handleUndo: setting showWicketForm = false');
+      console.trace('[SET SHOW WICKET] Stack');
       setShowWicketForm(false);
       setShowExtraForm(false);
       setSelectedExtraType(null);
       setWicketType('bowled');
+      console.log('[SET DISMISSED] handleUndo reset to empty');
+      console.trace('[SET DISMISSED] Stack');
       setDismissedPlayerId('');
       setFielderId('');
       setWicketRunsBatter('0');
@@ -591,6 +646,8 @@ export function LiveScoringPage() {
     }
 
     // Swap striker with the selected player
+    console.log('[INSTRUMENT][handleChangeStriker] setIncomingBatsmanId(', newStrikerId, ')');
+    console.trace('[INSTRUMENT][handleChangeStriker] Stack');
     setIncomingBatsmanId(newStrikerId);
     setHasBatsmanBeenChangedThisOver(true);
   }
@@ -611,6 +668,8 @@ export function LiveScoringPage() {
     }
 
     // Swap non-striker with the selected player
+    console.log('[INSTRUMENT][handleChangeNonStriker] setIncomingBatsmanId(', newNonStrikerId, ')');
+    console.trace('[INSTRUMENT][handleChangeNonStriker] Stack');
     setIncomingBatsmanId(newNonStrikerId);
     setHasBatsmanBeenChangedThisOver(true);
   }
@@ -647,6 +706,8 @@ export function LiveScoringPage() {
       setOpeningNonStrikerId('');
       setOpeningBowlerId('');
       setCurrentBowlerId(null);
+      console.log('[INSTRUMENT][handleCompleteInnings1] setIncomingBatsmanId(null)');
+      console.trace('[INSTRUMENT][handleCompleteInnings1] Stack');
       setIncomingBatsmanId(null);
     }
   }
@@ -869,21 +930,79 @@ export function LiveScoringPage() {
   }
 
   // Auto-fill wicket dismissed player options and reset incoming batsman
-  // BUG FIX: use previousShowWicketForm ref to only run this effect when the form
-  // first opens, not on every inningsState recalculation. Previously, selecting an
-  // incoming batsman would trigger inningsState recalculation (since incomingBatsmanId
-  // is in its useMemo deps), which would re-fire this effect and immediately reset
-  // incomingBatsmanId back to null — erasing the user's selection.
-  const previousShowWicketForm = useRef(false);
+  // ONLY on the false→true transition of showWicketForm (one-shot per open session)
+  const wicketJustOpenedRef = useRef(false);
   useEffect(() => {
-    console.log('[Wicket Form Effect] showWicketForm:', showWicketForm, 'previousShowWicketForm:', previousShowWicketForm.current, 'inningsState:', !!inningsState, 'incomingBatsmanId:', incomingBatsmanId);
-    if (showWicketForm && !previousShowWicketForm.current && inningsState) {
-      console.log('[Wicket Form Effect] Auto-filling dismissed player to striker:', inningsState.strikerId, 'and resetting incoming batsman');
+    console.log('[INSTRUMENT][USEFFECT #3] FIRED. deps: showWicketForm=', showWicketForm, 'inningsState=', !!inningsState);
+    console.log('[INSTRUMENT][USEFFECT #3] Current incomingBatsmanId=', incomingBatsmanId);
+    if (showWicketForm && inningsState && !wicketJustOpenedRef.current) {
+      wicketJustOpenedRef.current = true;
+      console.log('[Wicket Form Open] Auto-filling dismissed player to striker:', inningsState.strikerId);
+      console.log('[INSTRUMENT][USEFFECT #3] About to setDismissedPlayerId(', inningsState.strikerId, ') and setIncomingBatsmanId(null)');
+      console.log('[SET DISMISSED] auto-fill effect set to striker:', inningsState.strikerId);
+      console.trace('[SET DISMISSED] Stack from auto-fill effect');
       setDismissedPlayerId(inningsState.strikerId || '');
       setIncomingBatsmanId(null);
     }
-    previousShowWicketForm.current = showWicketForm;
+    if (!showWicketForm) {
+      wicketJustOpenedRef.current = false;
+    }
+  }, [showWicketForm, inningsState]);
+
+  // === INSTRUMENTATION: Track wicket form lifecycle & section wrapper ===
+  useEffect(() => {
+    if (showWicketForm) {
+      console.log('[LIFECYCLE] WICKET FORM AREA: showWicketForm=true, inningsState=', !!inningsState, 'inningsState?.isCompleted=', inningsState?.isCompleted);
+      console.log('[LIFECYCLE] Section wrapper condition:', !inningsState?.isCompleted && !!inningsState);
+    }
+  }, [showWicketForm, inningsState]);
+
+  useEffect(() => {
+    const sectionVisible = !inningsState?.isCompleted && !!inningsState;
+    if (showWicketForm) {
+      console.log('[LIFECYCLE] Section rendered (incomingBatsmanId=', incomingBatsmanId, ') sectionVisible=', sectionVisible);
+      if (!sectionVisible) {
+        console.log('[LIFECYCLE] *** CRITICAL: Section will UNMOUNT while wicket form is open! ***');
+        console.trace('[LIFECYCLE] Stack at section unmount risk');
+      }
+    }
+  });
+
+  useEffect(() => {
+    const sectionVisible = !inningsState?.isCompleted && !!inningsState;
+    if (showWicketForm && !sectionVisible) {
+      console.log('[LIFECYCLE] *** SECTION UNMOUNT DETECTED while wicket form open! ***');
+    }
   }, [showWicketForm, inningsState, incomingBatsmanId]);
+  // === INSTRUMENTATION: DOM option diagnostics for Incoming Batsman ===
+  const incomingDiagRef = useRef(0);
+  useEffect(() => {
+    if (!showWicketForm || !incomingBatsmanId) return;
+    incomingDiagRef.current += 1;
+    const selectEls = document.querySelectorAll<HTMLSelectElement>('#wicket-form select');
+    const incomingSelect = Array.from(selectEls).find(
+      (sel) => Array.from(sel.options).some((o) => o.value === incomingBatsmanId)
+    );
+    console.log(`[DOM DIAG #${incomingDiagRef.current}] incomingBatsmanId="${incomingBatsmanId}"`);
+    console.log(`[DOM DIAG #${incomingDiagRef.current}] wicket-form <select> count:`, selectEls.length);
+    Array.from(selectEls).forEach((sel, i) => {
+      const opts = Array.from(sel.options).map((o) => ({ text: o.text, value: o.value }));
+      console.log(`[DOM DIAG #${incomingDiagRef.current}] select[${i}] has selectedIndex=${sel.selectedIndex} options:`, opts);
+    });
+    if (!incomingSelect) {
+      const allSelects = document.querySelectorAll<HTMLSelectElement>('select');
+      console.log(`[DOM DIAG #${incomingDiagRef.current}] *** selected value "${incomingBatsmanId}" NOT FOUND in wicket-form selects!`);
+      console.log(`[DOM DIAG #${incomingDiagRef.current}] All <select> elements:`, allSelects.length);
+      Array.from(allSelects).forEach((sel, i) => {
+        if (sel.form?.id === 'wicket-form' || sel.closest('#wicket-form')) {
+          console.log(`[DOM DIAG #${incomingDiagRef.current}] all-selects[${i}] id=${sel.id} options:`, Array.from(sel.options).map(o => ({ text: o.text, value: o.value })));
+        }
+      });
+    } else {
+      console.log(`[DOM DIAG #${incomingDiagRef.current}] Found matching option. selectedIndex=${incomingSelect.selectedIndex}, value="${incomingSelect.value}"`);
+    }
+  }, [showWicketForm, incomingBatsmanId, eligibleIncomingBatsmen]);
+  // === END INSTRUMENTATION ===
 
   // NOTE: Removed eventsFetching re-sync effect that was overwriting user's dismissed player selection
   // every 10 seconds during background refetch. The showWicketForm effect above handles initial sync.
@@ -1208,7 +1327,11 @@ export function LiveScoringPage() {
                     <select
                       className="text-xs bg-white border border-slate-300 rounded px-1 mt-1.5 w-full text-slate-700 outline-none focus:border-teal-500"
                       value={inningsState.strikerId}
-                      onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                      onChange={(e) => {
+                        console.log('[INSTRUMENT][Swap Striker Dropdown] onChange: selecting', e.target.value);
+                        console.trace('[INSTRUMENT][Swap Striker Dropdown] Stack');
+                        setIncomingBatsmanId(e.target.value);
+                      }}
                     >
                       <option value={inningsState.strikerId}>Swap batsman</option>
                       {(() => {
@@ -1263,7 +1386,11 @@ export function LiveScoringPage() {
                     <select
                       className="text-xs bg-white border border-slate-300 rounded px-1 mt-1.5 w-full text-slate-700 outline-none focus:border-teal-500"
                       value={inningsState.nonStrikerId}
-                      onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                      onChange={(e) => {
+                        console.log('[INSTRUMENT][Swap Non-Striker Dropdown] onChange: selecting', e.target.value);
+                        console.trace('[INSTRUMENT][Swap Non-Striker Dropdown] Stack');
+                        setIncomingBatsmanId(e.target.value);
+                      }}
                     >
                       <option value={inningsState.nonStrikerId}>Swap batsman</option>
                       {(() => {
@@ -1485,7 +1612,7 @@ export function LiveScoringPage() {
 
           {/* A. WICKET FORM OVERLAY */}
           {showWicketForm ? (
-            <form onSubmit={handleLogWicket} className="grid gap-3">
+            <form id="wicket-form" onSubmit={handleLogWicket} className="grid gap-3">
               <h3 className="font-bold text-red-600 text-sm border-b border-slate-200 pb-2 flex items-center gap-2">
                 <Skull className="w-4 h-4" /> Log Wicket
               </h3>
@@ -1507,7 +1634,12 @@ export function LiveScoringPage() {
               <SelectField
                 label="Dismissed Batsman"
                 value={dismissedPlayerId}
-                onChange={(e) => setDismissedPlayerId(e.target.value)}
+                onChange={(e) => {
+                  console.log('[SET DISMISSED] Dismissed Batsman onChange fired. Selected value:', e.target.value);
+                  console.log('[SET DISMISSED] current state:', dismissedPlayerId);
+                  console.trace('[SET DISMISSED] Stack from Dismissed Batsman onChange');
+                  setDismissedPlayerId(e.target.value);
+                }}
                 required
               >
                 <option value="">Select dismissed player</option>
@@ -1570,6 +1702,18 @@ export function LiveScoringPage() {
 
                 if (isAllOut || eligibleIncomingBatsmen.length === 0) return null;
 
+                if (incomingBatsmanId) {
+                  const existsInEligible = eligibleIncomingBatsmen.includes(incomingBatsmanId);
+                  console.log('[INCOMING DIAG] incomingBatsmanId=', incomingBatsmanId, '| in eligibleList:', existsInEligible);
+                  console.log('[INCOMING DIAG] eligibleIncomingBatsmen IDs:', eligibleIncomingBatsmen);
+                  console.log('[INCOMING DIAG] eligibleIncomingBatsmen names:', eligibleIncomingBatsmen.map(id => playerMap.get(id)));
+                  console.log('[INCOMING DIAG] inningsState strikerId:', inningsState?.strikerId, 'nonStrikerId:', inningsState?.nonStrikerId);
+                  console.log('[INCOMING DIAG] dismissedPlayerIds:', [...dismissedPlayerIds]);
+                  if (!existsInEligible) {
+                    console.log('[INCOMING DIAG] *** SELECTED PLAYER IS NOT IN ELIGIBLE LIST ***');
+                  }
+                }
+
                 return (
                   <SelectField
                     label="Incoming Batsman"
@@ -1577,26 +1721,35 @@ export function LiveScoringPage() {
                     onChange={(e) => {
                       console.log('[Incoming Batsman] onChange fired. Selected option value:', e.target.value);
                       console.log('[Incoming Batsman] State before update:', incomingBatsmanId);
+                      console.trace('[Incoming Batsman] Stack trace from onChange');
                       setIncomingBatsmanId(e.target.value);
                       console.log('[Incoming Batsman] State after update (queued):', e.target.value);
                     }}
                     required
                   >
                     <option value="">Select incoming batsman</option>
-                    {eligibleIncomingBatsmen.map((id) => (
-                      <option key={id} value={id}>
-                        {playerMap.get(id)}
-                      </option>
-                    ))}
+                    {eligibleIncomingBatsmen.map((id) => {
+                      console.log('[INSTRUMENT][OPTION] id=', id, 'name=', playerMap.get(id));
+                      return (
+                        <option key={id} value={id}>
+                          {playerMap.get(id)}
+                        </option>
+                      );
+                    })}
                   </SelectField>
                 );
               })()}
+
 
               <div className="flex gap-2 mt-2">
                 <Button type="submit" variant="danger" className="flex-1" disabled={createBallEvent.isPending}>
                   <Skull className="w-4 h-4 mr-1" /> Save Wicket
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => setShowWicketForm(false)}>
+                <Button type="button" variant="secondary" onClick={() => {
+                  console.log('[SET SHOW WICKET] Cancel button: setting showWicketForm = false');
+                  console.trace('[SET SHOW WICKET] Stack');
+                  setShowWicketForm(false);
+                }}>
                   Cancel
                 </Button>
               </div>
@@ -1727,8 +1880,12 @@ export function LiveScoringPage() {
                       type="button"
                       onClick={() => {
                         // BUG 1 FIX: Reset all wicket state before opening extra form
+                        console.log('[SET SHOW WICKET] Extra button: setting showWicketForm = false');
+                        console.trace('[SET SHOW WICKET] Stack');
                         setShowWicketForm(false);
                         setWicketType('bowled');
+                        console.log('[SET DISMISSED] extra button reset to empty');
+                        console.trace('[SET DISMISSED] Stack');
                         setDismissedPlayerId('');
                         setFielderId('');
                         setWicketRunsBatter('0');
@@ -1758,6 +1915,10 @@ export function LiveScoringPage() {
                     if (eventsFetching) {
                       console.log('[Wicket Button] Data is stale (fetching), waiting for fresh state...');
                     }
+                    console.log('[INSTRUMENT][Wicket Button] Opening wicket form. Current incomingBatsmanId=', incomingBatsmanId);
+                    console.trace('[INSTRUMENT][Wicket Button] Stack');
+                    console.log('[SET SHOW WICKET] Wicket button: setting showWicketForm = true');
+                    console.trace('[SET SHOW WICKET] Stack');
                     setShowWicketForm(true);
                   }}
                   className="min-h-12 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white font-bold shadow-sm transition-all duration-150 active:scale-[0.97] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
