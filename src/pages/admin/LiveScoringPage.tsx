@@ -20,7 +20,7 @@ import { calculateInningsState, type ScoringContext } from '../../domain/scoring
 import type { BallEvent, TeamSide, ExtraType, WicketType } from '../../types/models';
 import { supabase } from '../../services/supabaseClient';
 import { updateStatsForCompletedMatch } from '../../services/statisticsService';
-import { useState, type FormEvent, useEffect, useMemo } from 'react';
+import { useState, type FormEvent, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Undo2, RotateCcw, Skull, ChevronLeft, Target, Gauge, TrendingUp, Zap, Trophy } from 'lucide-react';
@@ -869,13 +869,21 @@ export function LiveScoringPage() {
   }
 
   // Auto-fill wicket dismissed player options and reset incoming batsman
+  // BUG FIX: use previousShowWicketForm ref to only run this effect when the form
+  // first opens, not on every inningsState recalculation. Previously, selecting an
+  // incoming batsman would trigger inningsState recalculation (since incomingBatsmanId
+  // is in its useMemo deps), which would re-fire this effect and immediately reset
+  // incomingBatsmanId back to null — erasing the user's selection.
+  const previousShowWicketForm = useRef(false);
   useEffect(() => {
-    if (showWicketForm && inningsState) {
-      console.log('[Wicket Form Open] Auto-filling dismissed player to striker:', inningsState.strikerId);
+    console.log('[Wicket Form Effect] showWicketForm:', showWicketForm, 'previousShowWicketForm:', previousShowWicketForm.current, 'inningsState:', !!inningsState, 'incomingBatsmanId:', incomingBatsmanId);
+    if (showWicketForm && !previousShowWicketForm.current && inningsState) {
+      console.log('[Wicket Form Effect] Auto-filling dismissed player to striker:', inningsState.strikerId, 'and resetting incoming batsman');
       setDismissedPlayerId(inningsState.strikerId || '');
       setIncomingBatsmanId(null);
     }
-  }, [showWicketForm, inningsState]);
+    previousShowWicketForm.current = showWicketForm;
+  }, [showWicketForm, inningsState, incomingBatsmanId]);
 
   // NOTE: Removed eventsFetching re-sync effect that was overwriting user's dismissed player selection
   // every 10 seconds during background refetch. The showWicketForm effect above handles initial sync.
@@ -1566,7 +1574,12 @@ export function LiveScoringPage() {
                   <SelectField
                     label="Incoming Batsman"
                     value={incomingBatsmanId || ''}
-                    onChange={(e) => setIncomingBatsmanId(e.target.value)}
+                    onChange={(e) => {
+                      console.log('[Incoming Batsman] onChange fired. Selected option value:', e.target.value);
+                      console.log('[Incoming Batsman] State before update:', incomingBatsmanId);
+                      setIncomingBatsmanId(e.target.value);
+                      console.log('[Incoming Batsman] State after update (queued):', e.target.value);
+                    }}
                     required
                   >
                     <option value="">Select incoming batsman</option>
