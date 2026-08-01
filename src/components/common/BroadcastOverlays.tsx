@@ -24,7 +24,14 @@ export function classifyBroadcastEvents(delta: BallEvent[], state: DerivedInning
   const events: BroadcastEvent[] = [];
   if (delta.length === 0) return events;
 
-  const deltaRuns = delta.reduce((sum, e) => sum + e.runsBatter + e.runsExtra, 0);
+  const safeDelta = delta.filter(
+  (e): e is BallEvent => e !== undefined && e !== null
+);
+
+const deltaRuns = safeDelta.reduce(
+  (sum, e) => sum + (e.runsBatter ?? 0) + (e.runsExtra ?? 0),
+  0
+);
 
   // Team run milestones (50, 100, ...) crossed by this batch.
   const prevTotal = Math.max(state.totalRuns - deltaRuns, 0);
@@ -35,7 +42,7 @@ export function classifyBroadcastEvents(delta: BallEvent[], state: DerivedInning
   }
 
   // Partnership milestones (only when no wicket reset the pair mid-batch).
-  const hasWicket = delta.some((e) => e.isWicket);
+  const hasWicket = safeDelta.some((e) => e.isWicket);
   if (!hasWicket && state.strikerId && state.nonStrikerId) {
     const current = (state.battingStats[state.strikerId]?.runs ?? 0) + (state.battingStats[state.nonStrikerId]?.runs ?? 0);
     const previous = current - deltaRuns;
@@ -47,8 +54,24 @@ export function classifyBroadcastEvents(delta: BallEvent[], state: DerivedInning
   }
 
   // Latest ball classification — primary banner.
-  const latest = delta[delta.length - 1];
-  const runs = latest.runsBatter + latest.runsExtra;
+const latest = safeDelta.at(-1);
+
+if (!latest) {
+  console.warn("Broadcast: latest ball event is undefined", {
+    deltaLength: delta.length,
+    delta,
+  });
+
+  return events;
+}
+console.log("Broadcast Debug", {
+    delta,
+    safeDelta,
+    latest,
+    deltaLength: delta.length,
+    safeLength: safeDelta.length
+});
+const runs = latest.runsBatter + latest.runsExtra;
   if (latest.isWicket) {
     events.push({ id: ++broadcastEventId, kind: 'wicket', title: 'WICKET', subtitle: latest.wicketType ?? undefined });
   } else if (latest.runsBatter === 6) {
