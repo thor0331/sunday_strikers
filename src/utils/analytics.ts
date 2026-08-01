@@ -1,0 +1,368 @@
+import type { PlayerStatistics, Match, Innings, BallEvent } from '../types/models';
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+  progress?: { current: number; target: number };
+}
+
+export function computeAchievements(stats: PlayerStatistics | undefined, potmCount: number): Achievement[] {
+  const s = stats;
+  return [
+    {
+      id: 'first-fifty',
+      title: 'First Fifty',
+      description: 'Score 50 runs in a single innings',
+      icon: '50',
+      unlocked: (s?.highest_score ?? 0) >= 50,
+      progress: { current: Math.min(s?.highest_score ?? 0, 50), target: 50 }
+    },
+    {
+      id: 'first-century',
+      title: 'First Century',
+      description: 'Score 100 runs in a single innings',
+      icon: '100',
+      unlocked: (s?.highest_score ?? 0) >= 100,
+      progress: { current: Math.min(s?.highest_score ?? 0, 100), target: 100 }
+    },
+    {
+      id: '100-runs',
+      title: '100 Career Runs',
+      description: 'Reach 100 total runs',
+      icon: '🏃',
+      unlocked: (s?.runs ?? 0) >= 100,
+      progress: { current: Math.min(s?.runs ?? 0, 100), target: 100 }
+    },
+    {
+      id: '500-runs',
+      title: '500 Career Runs',
+      description: 'Reach 500 total runs',
+      icon: '🏃',
+      unlocked: (s?.runs ?? 0) >= 500,
+      progress: { current: Math.min(s?.runs ?? 0, 500), target: 500 }
+    },
+    {
+      id: '1000-runs',
+      title: '1000 Career Runs',
+      description: 'Reach 1000 total runs',
+      icon: '🏃',
+      unlocked: (s?.runs ?? 0) >= 1000,
+      progress: { current: Math.min(s?.runs ?? 0, 1000), target: 1000 }
+    },
+    {
+      id: 'first-wicket',
+      title: 'First Wicket',
+      description: 'Take your first wicket',
+      icon: 'W',
+      unlocked: (s?.wickets ?? 0) >= 1,
+      progress: { current: Math.min(s?.wickets ?? 0, 1), target: 1 }
+    },
+    {
+      id: '3-wicket-haul',
+      title: '3 Wicket Haul',
+      description: 'Take 3 wickets in a match',
+      icon: '🎯',
+      unlocked: false,
+    },
+    {
+      id: '5-wicket-haul',
+      title: '5 Wicket Haul',
+      description: 'Take 5 wickets in a match',
+      icon: '🎯',
+      unlocked: false,
+    },
+    {
+      id: '25-wickets',
+      title: '25 Career Wickets',
+      description: 'Reach 25 total wickets',
+      icon: '🎳',
+      unlocked: (s?.wickets ?? 0) >= 25,
+      progress: { current: Math.min(s?.wickets ?? 0, 25), target: 25 }
+    },
+    {
+      id: '50-wickets',
+      title: '50 Career Wickets',
+      description: 'Reach 50 total wickets',
+      icon: '🎳',
+      unlocked: (s?.wickets ?? 0) >= 50,
+      progress: { current: Math.min(s?.wickets ?? 0, 50), target: 50 }
+    },
+    {
+      id: 'potm',
+      title: 'Player of the Match',
+      description: 'Win a Player of the Match award',
+      icon: '🏆',
+      unlocked: potmCount >= 1,
+      progress: { current: Math.min(potmCount, 1), target: 1 }
+    },
+    {
+      id: 'multi-potm',
+      title: 'Multiple POTM Awards',
+      description: 'Win 5+ Player of the Match awards',
+      icon: '🏆',
+      unlocked: potmCount >= 5,
+      progress: { current: Math.min(potmCount, 5), target: 5 }
+    },
+  ];
+}
+
+export type FormRating = 'excellent' | 'average' | 'needs_improvement';
+
+export function computeFormRating(stats: PlayerStatistics | undefined): FormRating {
+  if (!stats || stats.matches_played === 0) return 'needs_improvement';
+  const avgRuns = stats.runs / stats.matches_played;
+  const avgWickets = stats.wickets / stats.matches_played;
+  if (avgRuns >= 20 || avgWickets >= 1.5) return 'excellent';
+  if (avgRuns >= 10 || avgWickets >= 0.5) return 'average';
+  return 'needs_improvement';
+}
+
+export interface TeamStats {
+  matchesPlayed: number;
+  wins: number;
+  losses: number;
+  winPercentage: number;
+  avgScore: number;
+  highestScore: number;
+  totalRuns: number;
+  totalWickets: number;
+}
+
+export function computeTeamStats(
+  matches: Match[],
+  teamName: string,
+  inningsList: Innings[] = [],
+  ballEvents: BallEvent[] = []
+): TeamStats {
+  const teamMatches = matches.filter(
+    m => m.status === 'completed' && (m.team_a_name === teamName || m.team_b_name === teamName)
+  );
+
+  const stats = teamMatches.reduce(
+    (acc, m) => {
+      const isTeamA = m.team_a_name === teamName;
+      const won = (isTeamA && m.winner === 'team_a') || (!isTeamA && m.winner === 'team_b');
+      const lost = m.winner !== null && !won;
+      return {
+        matchesPlayed: acc.matchesPlayed + 1,
+        wins: acc.wins + (won ? 1 : 0),
+        losses: acc.losses + (lost ? 1 : 0),
+      };
+    },
+    { matchesPlayed: 0, wins: 0, losses: 0 }
+  );
+
+  const matchById = new Map(teamMatches.map(m => [m.id, m]));
+  const battingInnings = inningsList.filter(i => {
+    const m = matchById.get(i.match_id);
+    if (!m) return false;
+    return (i.batting_team === 'team_a' && m.team_a_name === teamName) ||
+           (i.batting_team === 'team_b' && m.team_b_name === teamName);
+  });
+
+  let totalRuns = 0;
+  let totalWickets = 0;
+  let highestScore = 0;
+  for (const inn of battingInnings) {
+    const events = ballEvents.filter(e => e.inningsId === inn.id);
+    const runs = events.reduce((sum, e) => sum + e.runsBatter + e.runsExtra, 0);
+    const wickets = events.filter(e => e.isWicket).length;
+    totalRuns += runs;
+    totalWickets += wickets;
+    if (runs > highestScore) highestScore = runs;
+  }
+
+  return {
+    ...stats,
+    winPercentage: stats.matchesPlayed > 0 ? Math.round((stats.wins / stats.matchesPlayed) * 100) : 0,
+    avgScore: battingInnings.length > 0 ? Math.round(totalRuns / battingInnings.length) : 0,
+    highestScore,
+    totalRuns,
+    totalWickets,
+  };
+}
+
+export function computeHeadToHead(matches: Match[], teamAName: string, teamBName: string) {
+  const h2h = matches.filter(
+    m => m.status === 'completed' &&
+    ((m.team_a_name === teamAName && m.team_b_name === teamBName) ||
+     (m.team_a_name === teamBName && m.team_b_name === teamAName))
+  );
+
+  const teamAWins = h2h.filter(m =>
+    (m.team_a_name === teamAName && m.winner === 'team_a') ||
+    (m.team_b_name === teamAName && m.winner === 'team_b')
+  ).length;
+
+  const teamBWins = h2h.filter(m =>
+    (m.team_a_name === teamBName && m.winner === 'team_a') ||
+    (m.team_b_name === teamBName && m.winner === 'team_b')
+  ).length;
+
+  return {
+    matchesPlayed: h2h.length,
+    teamAWins,
+    teamBWins,
+    draws: h2h.length - teamAWins - teamBWins,
+    teamAWinPercentage: h2h.length > 0 ? Math.round((teamAWins / h2h.length) * 100) : 0,
+    teamBWinPercentage: h2h.length > 0 ? Math.round((teamBWins / h2h.length) * 100) : 0,
+  };
+}
+
+export interface PlayerInningsScore {
+  runs: number;
+  balls: number;
+  isOut: boolean;
+  matchDate: string;
+  matchName: string;
+}
+
+export function computePlayerInningsScores(
+  playerId: string,
+  ballEventsByInnings: { innings: Innings; events: BallEvent[]; match: Match }[]
+): PlayerInningsScore[] {
+  return ballEventsByInnings
+    .filter(({ events }) => events.some(e => e.strikerId === playerId))
+    .map(({ events, match }) => {
+      const playerEvents = events.filter(e => e.strikerId === playerId);
+      const runs = playerEvents.reduce((sum, e) => sum + e.runsBatter, 0);
+      const balls = playerEvents.filter(e => e.isLegalDelivery).length;
+      const isOut = events.some(e => e.dismissedPlayerId === playerId);
+      return { runs, balls, isOut, matchDate: match.match_date, matchName: match.match_name };
+    })
+    .slice(0, 5)
+    .reverse();
+}
+
+export interface StreakInfo {
+  type: 'runs' | 'wickets' | 'potm' | 'matches';
+  count: number;
+  label: string;
+  active: boolean;
+}
+
+export function computeStreaks(
+  playerId: string,
+  matches: Match[],
+  ballEventsByInnings: { innings: Innings; events: BallEvent[]; match: Match }[]
+): StreakInfo[] {
+  const completedMatches = matches
+    .filter(m => m.status === 'completed')
+    .sort((a, b) => b.match_date.localeCompare(a.match_date));
+
+  const matchStreak = computeConsecutive(completedMatches, m =>
+    m.team_a_captain_id === playerId || m.team_b_captain_id === playerId ||
+    ballEventsByInnings.some(bei => bei.match.id === m.id && bei.events.some(e => e.strikerId === playerId || e.bowlerId === playerId))
+  );
+
+  const scoringStreak = computeConsecutive(completedMatches, m =>
+    ballEventsByInnings.some(bei =>
+      bei.match.id === m.id &&
+      bei.events.some(e => e.strikerId === playerId && e.runsBatter > 0)
+    )
+  );
+
+  const wicketStreak = computeConsecutive(completedMatches, m =>
+    ballEventsByInnings.some(bei =>
+      bei.match.id === m.id &&
+      bei.events.some(e => e.bowlerId === playerId && e.isWicket)
+    )
+  );
+
+  const potmStreak = computeConsecutive(completedMatches, m => m.player_of_match_id === playerId);
+
+  const streaks: StreakInfo[] = [];
+  if (matchStreak >= 2) streaks.push({ type: 'matches', count: matchStreak, label: 'Match Streak', active: true });
+  if (scoringStreak >= 2) streaks.push({ type: 'runs', count: scoringStreak, label: 'Scoring Streak', active: true });
+  if (wicketStreak >= 2) streaks.push({ type: 'wickets', count: wicketStreak, label: 'Wicket Streak', active: true });
+  if (potmStreak >= 2) streaks.push({ type: 'potm', count: potmStreak, label: 'POTM Streak', active: true });
+  return streaks;
+}
+
+function computeConsecutive(matches: Match[], predicate: (m: Match) => boolean): number {
+  let count = 0;
+  for (const match of matches) {
+    if (predicate(match)) count++;
+    else break;
+  }
+  return count;
+}
+
+export interface SeasonAward {
+  playerId: string;
+  playerName: string;
+  category: string;
+  value: string | number;
+  icon: string;
+}
+
+export function computeSeasonAwards(stats: PlayerStatistics[], playerMap: Map<string, string>): SeasonAward[] {
+  const awards: SeasonAward[] = [];
+
+  const topRuns = [...stats].sort((a, b) => b.runs - a.runs)[0];
+  if (topRuns) awards.push({ playerId: topRuns.player_id, playerName: playerMap.get(topRuns.player_id) ?? 'Unknown', category: 'Orange Cap', value: `${topRuns.runs} runs`, icon: '🏏' });
+
+  const topWickets = [...stats].sort((a, b) => b.wickets - a.wickets)[0];
+  if (topWickets) awards.push({ playerId: topWickets.player_id, playerName: playerMap.get(topWickets.player_id) ?? 'Unknown', category: 'Purple Cap', value: `${topWickets.wickets} wickets`, icon: '🎯' });
+
+  const sortedByAvg = [...stats].filter(s => s.outs > 0).sort((a, b) => (b.runs / b.outs) - (a.runs / a.outs));
+  if (sortedByAvg[0]) awards.push({ playerId: sortedByAvg[0].player_id, playerName: playerMap.get(sortedByAvg[0].player_id) ?? 'Unknown', category: 'MVP', value: `${(sortedByAvg[0].runs / sortedByAvg[0].outs).toFixed(1)} avg`, icon: '🏆' });
+
+  const emerging = [...stats].filter(s => s.matches_played <= 5).sort((a, b) => b.runs - a.runs)[0];
+  if (emerging) awards.push({ playerId: emerging.player_id, playerName: playerMap.get(emerging.player_id) ?? 'Unknown', category: 'Emerging Player', value: `${emerging.runs} runs`, icon: '⭐' });
+
+  const topFielding = [...stats].sort((a, b) => (b.catches + b.run_outs + b.stumpings) - (a.catches + a.run_outs + a.stumpings))[0];
+  if (topFielding) awards.push({ playerId: topFielding.player_id, playerName: playerMap.get(topFielding.player_id) ?? 'Unknown', category: 'Best Fielder', value: `${topFielding.catches + topFielding.run_outs + topFielding.stumpings} dismissals`, icon: '🧤' });
+
+  return awards;
+}
+
+export function computeWinProbability(
+  targetRuns: number,
+  currentRuns: number,
+  wicketsLost: number,
+  totalWickets: number,
+  oversUsed: number,
+  totalOvers: number
+): number {
+  if (targetRuns <= 0 || totalOvers <= 0) return 50;
+
+  const runsNeeded = targetRuns - currentRuns;
+  if (runsNeeded <= 0) return 100;
+
+  // BUG FIX: Convert oversUsed (decimal like 5.3 = 5 overs 3 balls) to actual balls
+  const ballsUsed = Math.floor(oversUsed) * 6 + Math.round((oversUsed % 1) * 10);
+  const totalBalls = totalOvers * 6;
+  const ballsRemaining = totalBalls - ballsUsed;
+
+  if (ballsRemaining <= 0 || wicketsLost >= totalWickets) return 0;
+
+  // BUG FIX: At innings start (0 runs, 0 balls), return a baseline probability
+  // based on wickets in hand and overs available
+  if (currentRuns <= 0 && ballsUsed <= 0) {
+    // Baseline: team has all wickets and all overs — give them a fair chance
+    const wicketFactor = Math.max(0, 1 - (wicketsLost / totalWickets));
+    return Math.round(40 + wicketFactor * 20); // 40-60% depending on wickets
+  }
+
+  const crr = ballsUsed > 0 ? (currentRuns * 6) / ballsUsed : 0;
+  const rrr = ballsRemaining > 0 ? (runsNeeded * 6) / ballsRemaining : 999;
+
+  const runFactor = rrr > 0 ? Math.max(0, Math.min(1, crr / rrr)) : 1;
+  const wicketFactor = Math.max(0, 1 - (wicketsLost / totalWickets));
+  const ballFactor = Math.min(1, ballsRemaining / totalBalls);
+
+  const probability = (runFactor * 0.5 + wicketFactor * 0.3 + ballFactor * 0.2) * 100;
+  return Math.round(Math.max(0, Math.min(100, probability)));
+}
+
+export function computeAttendanceRate(
+  totalMatches: number,
+  availableCount: number
+): number {
+  if (totalMatches === 0) return 0;
+  return Math.round((availableCount / totalMatches) * 100);
+}

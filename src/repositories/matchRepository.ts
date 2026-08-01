@@ -10,8 +10,8 @@ export type MatchPlayerInsert = Database['public']['Tables']['match_players']['I
 export interface TeamAssignment {
   playerId: string;
   team: TeamSide;
-  battingOrder?: number | null;
-  isCaptain?: boolean;
+  battingOrder: number;
+  isCaptain: boolean;
 }
 
 export interface TossInput {
@@ -118,8 +118,30 @@ export const matchRepository = {
     return assignments;
   },
 
+  async listCompletedMatches() {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('status', 'completed')
+      .eq('is_super_over', false)
+      .order('match_date', { ascending: false })
+      .limit(5);
+    return requireData(data, error);
+  },
+
   async listPlayers(matchId: string) {
     const { data, error } = await supabase.from('match_players').select('*').eq('match_id', matchId).order('team').order('batting_order');
+    return requireData(data, error);
+  },
+
+  async listPlayersByMatches(matchIds: string[]) {
+    if (matchIds.length === 0) return [];
+    const { data, error } = await supabase
+      .from('match_players')
+      .select('*')
+      .in('match_id', matchIds)
+      .order('team')
+      .order('batting_order');
     return requireData(data, error);
   },
 
@@ -135,11 +157,14 @@ export const matchRepository = {
       status: 'toss_completed'
     });
 
+    const battingTeam: Database['public']['Enums']['innings_side'] = battingFirst;
+    const bowlingTeam: Database['public']['Enums']['innings_side'] = bowlingFirst;
+
     const firstInnings = {
       match_id: matchId,
       innings_number: 1,
-      batting_team: battingFirst,
-      bowling_team: bowlingFirst,
+      batting_team: battingTeam,
+      bowling_team: bowlingTeam,
       status: 'not_started' as const,
       target_runs: null
     };
@@ -147,8 +172,8 @@ export const matchRepository = {
     const secondInnings = {
       match_id: matchId,
       innings_number: 2,
-      batting_team: bowlingFirst,
-      bowling_team: battingFirst,
+      batting_team: bowlingTeam,
+      bowling_team: battingTeam,
       status: 'not_started' as const,
       target_runs: null
     };
@@ -212,6 +237,16 @@ export const matchRepository = {
     return requireData(data, error);
   },
 
+  async getInningsByMatches(matchIds: string[]) {
+    if (matchIds.length === 0) return [];
+    const { data, error } = await supabase
+      .from('innings')
+      .select('*')
+      .in('match_id', matchIds)
+      .order('innings_number', { ascending: true });
+    return requireData(data, error);
+  },
+
   async updateInnings(inningsId: string, input: Database['public']['Tables']['innings']['Update']) {
     const { data, error } = await supabase
       .from('innings')
@@ -220,6 +255,10 @@ export const matchRepository = {
       .select()
       .single();
     return requireData(data, error);
+  },
+
+  async setInProgress(matchId: string) {
+    return this.update(matchId, { status: 'in_progress' });
   },
 
   async completeMatch(
@@ -237,6 +276,10 @@ export const matchRepository = {
   },
 
   async delete(matchId: string) {
+    const match = await this.get(matchId);
+    if (match.status === 'completed') {
+      await this.update(matchId, { status: 'draft' });
+    }
     const { data, error } = await supabase.from('matches').delete().eq('id', matchId).select();
     return requireData(data, error);
   },

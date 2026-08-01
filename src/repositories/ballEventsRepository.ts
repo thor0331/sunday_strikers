@@ -64,6 +64,16 @@ export const ballEventsRepository = {
     return requireData(data, error).map(toBallEvent);
   },
 
+  async getBallEventsByMatches(matchIds: string[]): Promise<BallEvent[]> {
+    if (matchIds.length === 0) return [];
+    const { data, error } = await supabase
+      .from('ball_events')
+      .select('*')
+      .in('match_id', matchIds)
+      .order('sequence_number', { ascending: true });
+    return requireData(data, error).map(toBallEvent);
+  },
+
   async deleteLastBallEvent(inningsId: string): Promise<BallEvent | null> {
     const { data: latest, error: latestError } = await supabase
       .from('ball_events')

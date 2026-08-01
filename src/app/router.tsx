@@ -4,20 +4,32 @@ import { ProtectedRoute } from '../components/layout/ProtectedRoute';
 import { PublicLayout } from '../components/layout/PublicLayout';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { AdminLoginPage } from '../pages/admin/AdminLoginPage';
+import { AdminMaintenancePage } from '../pages/admin/AdminMaintenancePage';
 import { AdminMatchDetailsPage } from '../pages/admin/AdminMatchDetailsPage';
 import { LiveScoringPage } from '../pages/admin/LiveScoringPage';
 import { MatchCreationPage } from '../pages/admin/MatchCreationPage';
 import { PlayerManagementPage } from '../pages/admin/PlayerManagementPage';
 import { SeasonManagementPage } from '../pages/admin/SeasonManagementPage';
+import { SiteContentPage } from '../pages/admin/SiteContentPage';
 import { TossPage } from '../pages/admin/TossPage';
 import { TeamFormationPage } from '../pages/admin/TeamFormationPage';
+import { AboutPage } from '../pages/public/AboutPage';
 import { AvailabilityPage } from '../pages/public/AvailabilityPage';
+import { BroadcastPage } from '../pages/public/BroadcastPage';
+import { ClubRecordsPage } from '../pages/public/ClubRecordsPage';
 import { DashboardPage } from '../pages/public/DashboardPage';
+import { HallOfFamePage } from '../pages/public/HallOfFamePage';
 import { LeaderboardsPage } from '../pages/public/LeaderboardsPage';
+import { MatchCenterPage } from '../pages/public/MatchCenterPage';
 import { MatchHistoryPage } from '../pages/public/MatchHistoryPage';
 import { MatchSummaryPage } from '../pages/public/MatchSummaryPage';
+import { MyDashboardPage } from '../pages/public/MyDashboardPage';
+import { PlayerProfilePage } from '../pages/public/PlayerProfilePage';
 import { PlayersPage } from '../pages/public/PlayersPage';
+import { SeasonAwardsPage } from '../pages/public/SeasonAwardsPage';
 import { SeasonsPage } from '../pages/public/SeasonsPage';
+import { SeasonSummaryPage } from '../pages/public/SeasonSummaryPage';
+import { TeamComparisonPage } from '../pages/public/TeamComparisonPage';
 
 export const router = createBrowserRouter([
   {
@@ -25,14 +37,24 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <DashboardPage /> },
       { path: '/players', element: <PlayersPage /> },
+      { path: '/my-dashboard', element: <MyDashboardPage /> },
       { path: '/availability', element: <AvailabilityPage /> },
-      { path: '/matches', element: <MatchHistoryPage /> },
+      { path: '/matches', element: <MatchCenterPage /> },
+      { path: '/matches/history', element: <MatchHistoryPage /> },
       { path: '/matches/:matchId', element: <MatchSummaryPage /> },
       { path: '/leaderboards', element: <LeaderboardsPage /> },
-      { path: '/seasons', element: <SeasonsPage /> }
+      { path: '/seasons', element: <SeasonsPage /> },
+      { path: '/teams', element: <TeamComparisonPage /> },
+      { path: '/awards', element: <SeasonAwardsPage /> },
+      { path: '/hall-of-fame', element: <HallOfFamePage /> },
+      { path: '/players/:playerId', element: <PlayerProfilePage /> },
+      { path: '/records', element: <ClubRecordsPage /> },
+      { path: '/season-summary', element: <SeasonSummaryPage /> },
+      { path: '/about', element: <AboutPage /> }
     ]
   },
   { path: '/admin/login', element: <AdminLoginPage /> },
+  { path: '/broadcast/:matchId', element: <BroadcastPage /> },
   {
     path: '/admin',
     element: <ProtectedRoute />,
@@ -48,7 +70,9 @@ export const router = createBrowserRouter([
           { path: 'matches/:matchId/teams', element: <TeamFormationPage /> },
           { path: 'matches/:matchId/toss', element: <TossPage /> },
           { path: 'matches/:matchId/scoring', element: <LiveScoringPage /> },
-          { path: 'matches/:matchId/details', element: <AdminMatchDetailsPage /> }
+          { path: 'matches/:matchId/details', element: <AdminMatchDetailsPage /> },
+          { path: 'content', element: <SiteContentPage /> },
+          { path: 'maintenance', element: <AdminMaintenancePage /> }
         ]
       }
     ]

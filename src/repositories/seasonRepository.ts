@@ -32,12 +32,29 @@ export const seasonRepository = {
   },
 
   async delete(id: string) {
-    const { data: matches, error: matchesError } = await supabase.from('matches').select('id').eq('season_id', id).limit(1);
+    const { data: season, error: fetchError } = await supabase
+      .from('seasons').select('*').eq('id', id).single();
+    if (fetchError) throw parseSupabaseError(fetchError);
+
+    const { error: matchesError } = await supabase
+      .from('matches').delete().eq('season_id', id);
     if (matchesError) throw parseSupabaseError(matchesError);
-    if (matches && matches.length > 0) {
-      throw new Error('Cannot delete season because matches exist in it.');
+
+    const { error: deleteError } = await supabase
+      .from('seasons').delete().eq('id', id);
+    if (deleteError) throw parseSupabaseError(deleteError);
+
+    if (season.is_active) {
+      const { data: remaining } = await supabase
+        .from('seasons').select('id')
+        .order('created_at', { ascending: false }).limit(1);
+      if (remaining && remaining.length > 0) {
+        const { error: promoteError } = await supabase
+          .from('seasons').update({ is_active: true }).eq('id', remaining[0].id);
+        if (promoteError) throw parseSupabaseError(promoteError);
+      }
     }
-    const { data, error } = await supabase.from('seasons').delete().eq('id', id).select();
-    return requireData(data, error);
+
+    return { deletedSeasonId: id };
   }
 };

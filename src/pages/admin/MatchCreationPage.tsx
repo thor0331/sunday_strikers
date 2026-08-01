@@ -7,6 +7,7 @@ import { usePlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMemo, useState, type FormEvent, useEffect } from 'react';
+import type { MatchFormat } from '../../types/models';
 
 export function MatchCreationPage() {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export function MatchCreationPage() {
   const [teamACaptainId, setTeamACaptainId] = useState('');
   const [teamBCaptainId, setTeamBCaptainId] = useState('');
   const [notes, setNotes] = useState('');
+  const [matchFormat, setMatchFormat] = useState<MatchFormat>('short_boundary');
 
   useEffect(() => {
     if (match) {
@@ -46,6 +48,7 @@ export function MatchCreationPage() {
       setTeamACaptainId(match.team_a_captain_id || '');
       setTeamBCaptainId(match.team_b_captain_id || '');
       setNotes(match.notes || '');
+      setMatchFormat((match.match_format as MatchFormat) || 'short_boundary');
     }
   }, [match]);
 
@@ -68,6 +71,7 @@ export function MatchCreationPage() {
       team_a_captain_id: teamACaptainId || null,
       team_b_captain_id: teamBCaptainId || null,
       notes: notes.trim() || null,
+      match_format: matchFormat,
       status: match ? match.status : (teamACaptainId && teamBCaptainId ? 'scheduled' : 'draft')
     };
 
@@ -83,7 +87,7 @@ export function MatchCreationPage() {
   if (matchId && matchLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-slate-500 font-medium">Loading match details...</p>
+        <p className="text-slate-400 font-medium">Loading match details...</p>
       </div>
     );
   }
@@ -92,7 +96,7 @@ export function MatchCreationPage() {
     <PagePanel title={matchId ? 'Edit Match' : 'Create Match'}>
       <form className="grid gap-3" onSubmit={submit}>
         {isStarted && (
-          <div className="p-3 bg-amber-50 text-amber-800 rounded border border-amber-200 text-sm font-semibold">
+          <div className="p-3 bg-amber-400/10 text-amber-300 rounded border border-amber-400/30 text-sm font-semibold">
             Editing is disabled because this match has already started or completed.
           </div>
         )}
@@ -186,6 +190,15 @@ export function MatchCreationPage() {
               {player.display_name}
             </option>
           ))}
+        </SelectField>
+        <SelectField
+          label="Match Format"
+          value={matchFormat}
+          onChange={(event) => setMatchFormat(event.target.value as MatchFormat)}
+          disabled={isStarted}
+        >
+          <option value="short_boundary">Short Boundary Cricket</option>
+          <option value="long_boundary">Long Boundary Cricket</option>
         </SelectField>
         <TextAreaField
           label="Notes"

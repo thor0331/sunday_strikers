@@ -13,6 +13,13 @@ export function useMatchAvailability(matchId: string | null) {
   });
 }
 
+export function useAllAvailability() {
+  return useQuery({
+    queryKey: ['availability', 'all'],
+    queryFn: () => availabilityRepository.listAll()
+  });
+}
+
 export function useSetAvailability() {
   const queryClient = useQueryClient();
   return useMutation({

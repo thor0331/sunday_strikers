@@ -18,27 +18,35 @@ export function MatchHistoryRow({ item }: MatchHistoryRowProps) {
   };
 
   return (
-    <article 
+    <article
       onClick={handleRowClick}
-      className="rounded-lg border border-slate-700 bg-slate-800 p-4 cursor-pointer hover:shadow-lg hover:border-teal-600 hover:bg-slate-750 transition-all"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleRowClick();
+        }
+      }}
+      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 cursor-pointer shadow-sm backdrop-blur-xl hover:shadow-lg hover:border-accent-green/40 hover:bg-white/[0.06] transition-all duration-300"
     >
       <div className="grid grid-cols-[6rem_1fr] gap-2 text-sm">
-        <span className="font-semibold text-slate-400">Match</span>
-        <span className="font-bold text-slate-100">{item.match.match_name}</span>
+        <span className="font-semibold text-slate-300">Match</span>
+        <span className="font-bold text-white">{item.match.match_name}</span>
 
-        <span className="font-semibold text-slate-400">Date</span>
-        <span className="text-slate-300">{item.match.match_date}</span>
+        <span className="font-semibold text-slate-300">Date</span>
+        <span className="text-white/70">{item.match.match_date}</span>
 
-        <span className="font-semibold text-slate-400">Venue</span>
-        <span className="text-slate-300">{item.match.venue || 'Not specified'}</span>
+        <span className="font-semibold text-slate-300">Venue</span>
+        <span className="text-white/70">{item.match.venue || 'Not specified'}</span>
 
-        <span className="font-semibold text-slate-400">Super Over</span>
-        <span className="text-slate-300">{item.superOver ? item.superOver.match_name : 'Not played'}</span>
+        <span className="font-semibold text-slate-300">Super Over</span>
+        <span className="text-white/70">{item.superOver ? item.superOver.match_name : 'Not played'}</span>
 
-        <span className="font-semibold text-slate-400">Final Winner</span>
-        <span className="font-bold text-teal-400">{winnerLabel(item)}</span>
+        <span className="font-semibold text-slate-300">Final Winner</span>
+        <span className="font-bold text-accent-green">{winnerLabel(item)}</span>
       </div>
-      {item.finalResultText ? <p className="mt-3 text-sm text-slate-400">{item.finalResultText}</p> : null}
+      {item.finalResultText ? <p className="mt-3 text-sm text-slate-300">{item.finalResultText}</p> : null}
     </article>
   );
 }

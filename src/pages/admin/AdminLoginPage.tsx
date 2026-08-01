@@ -22,7 +22,7 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-md bg-slate-50 px-4 py-10">
+    <main className="mx-auto min-h-screen max-w-md bg-transparent px-4 py-10">
       <PagePanel title="Admin Login">
         <form className="grid gap-3" onSubmit={submit}>
           <TextField label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
