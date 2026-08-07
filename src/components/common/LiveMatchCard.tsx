@@ -3,7 +3,7 @@ import { useBallEvents } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gauge, Target, Zap } from 'lucide-react';
+import { TrendingUp, Gauge } from 'lucide-react';
 import { getTeamColors, type TeamSide } from '../../utils/teamColors';
 import { GlassCard } from './GlassCard';
 import { WatchLiveLink } from './WatchLiveLink';

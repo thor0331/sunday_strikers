@@ -3,12 +3,12 @@ import { SelectField } from '../../components/forms/Field';
 import { usePlayers } from '../../hooks/usePlayers';
 import { usePlayerDashboard } from '../../hooks/usePlayerDashboard';
 import { usePlayerInningsHistory, usePlayerFormData } from '../../hooks/usePlayerDerived';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { CircularAvatar } from '../../components/common/CircularAvatar';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import { GlassCard } from '../../components/common/GlassCard';
 import { Skeleton, SkeletonCard } from '../../components/common/Skeleton';
-import { BarChart3, Target, Activity, Star, Trophy, TrendingUp, Zap, Shield, Link2, Sparkles, Swords } from 'lucide-react';
+import { BarChart3, Target, Activity, Star, Trophy, TrendingUp, Zap, Shield, Swords, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PlayerComparison } from '../../components/common/PlayerComparison';
 

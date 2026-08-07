@@ -6,7 +6,6 @@ import { usePlayers } from '../../hooks/usePlayers';
 import { usePlayerStatistics } from '../../hooks/useStatistics';
 import { usePlayerFormData, usePlayerInningsHistory, usePlayerStreaks, usePotmCount } from '../../hooks/usePlayerDerived';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import { SkeletonCard } from '../../components/common/Skeleton';
 import { Flame, Star, Award, Zap, TrendingUp, Target } from 'lucide-react';
@@ -17,12 +16,11 @@ const formConfig = {
   needs_improvement: { label: '📉 Needs Work', color: 'bg-red-400/10 text-red-300 border-red-400/25', dot: 'bg-red-400' },
 };
 
-function PlayerCard({ player, stats, potmCounts, avatarViewer, onNavigate }: {
+function PlayerCard({ player, stats, potmCounts, avatarViewer }: {
   player: import('../../types/models').Player;
   stats?: import('../../types/models').PlayerStatistics;
   potmCounts: Record<string, number>;
   avatarViewer: { open: (src: string, name: string) => void };
-  onNavigate: (playerId: string) => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const potmCount = potmCounts[player.id] ?? 0;
@@ -196,7 +194,6 @@ function MiniStat({ label, value, color }: { label: string; value: number; color
 }
 
 export function PlayersPage() {
-  const navigate = useNavigate();
   const avatarViewer = useAvatarViewerStore();
   const { data: players = [], isLoading, error } = usePlayers();
   const { data: allStats = [] } = usePlayerStatistics();
@@ -259,7 +256,7 @@ export function PlayersPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 stagger-enter">
           {players.map((player) => (
-            <PlayerCard key={player.id} player={player} stats={statsMap.get(player.id)} potmCounts={potmCounts} avatarViewer={avatarViewer} onNavigate={(id) => navigate(`/players/${id}`)} />
+            <PlayerCard key={player.id} player={player} stats={statsMap.get(player.id)} potmCounts={potmCounts} avatarViewer={avatarViewer} />
           ))}
         </div>
       )}

@@ -21,6 +21,7 @@ function ball(partial: Partial<BallEvent>): BallEvent {
     isWicket: partial.isWicket ?? false,
     wicketType: partial.wicketType ?? null,
     dismissedPlayerId: partial.dismissedPlayerId ?? null,
+    incomingBatsmanId: partial.incomingBatsmanId ?? null,
     fielderId: partial.fielderId ?? null,
     isLegalDelivery: partial.isLegalDelivery ?? true,
     notes: partial.notes ?? null,

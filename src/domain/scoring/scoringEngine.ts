@@ -8,6 +8,7 @@ export interface ScoringContext {
   oversPerInnings: number;
   playersPerTeam: number;
   targetRuns?: number | null;
+  creaseOverride?: { strikerId: string; nonStrikerId: string } | null;
 }
 
 const BOWLER_WICKET_TYPES = new Set(['bowled', 'caught', 'lbw', 'stumped', 'hit_wicket']);
@@ -91,9 +92,17 @@ export function calculateInningsState(context: ScoringContext, events: BallEvent
   for (const event of ordered) {
     if (strikerId === null || nonStrikerId === null) break;
 
+    // The crease recorded on each event is the ground truth for that delivery.
+    // Trusting it (instead of only deriving from run-parity rotations) keeps the
+    // replay in sync after manual batsman changes, which are otherwise invisible
+    // to rotation-based derivation until a ball is reflected.
+    strikerId = event.strikerId;
+    nonStrikerId = event.nonStrikerId;
+
     const legal = isLegalDelivery(event);
     const ballRuns = totalRunsForBall(event);
     const batter = getBatter(event.strikerId);
+    getBatter(event.nonStrikerId);
     const bowler = getBowler(event.bowlerId);
     const overKey = `${event.bowlerId}:${Math.floor(legalBalls / 6)}`;
 
@@ -126,13 +135,17 @@ export function calculateInningsState(context: ScoringContext, events: BallEvent
       dismissed.isOut = true;
       dismissed.dismissalText = event.wicketType;
 
+      // The scorer's explicit incoming selection is recorded on the wicket event,
+      // so the replay (and refresh/undo) trusts it over a derived batting-order
+      // guess. Without it (legacy events) fall back to the next batting-order index.
+      const replacementId = event.incomingBatsmanId ?? context.battingOrder[nextBatterIndex] ?? null;
+      if (replacementId) getBatter(replacementId);
+
       if (event.dismissedPlayerId === strikerId) {
-        strikerId = context.battingOrder[nextBatterIndex] ?? null;
-        if (strikerId) getBatter(strikerId);
+        strikerId = replacementId;
         nextBatterIndex += 1;
       } else if (event.dismissedPlayerId === nonStrikerId) {
-        nonStrikerId = context.battingOrder[nextBatterIndex] ?? null;
-        if (nonStrikerId) getBatter(nonStrikerId);
+        nonStrikerId = replacementId;
         nextBatterIndex += 1;
       }
     }
@@ -150,6 +163,13 @@ export function calculateInningsState(context: ScoringContext, events: BallEvent
     const allOut = wickets >= maxWickets;
     const oversComplete = legalBalls >= context.oversPerInnings * 6;
     if (targetReached || allOut || oversComplete) break;
+  }
+
+  if (context.creaseOverride?.strikerId && context.creaseOverride?.nonStrikerId) {
+    strikerId = context.creaseOverride.strikerId;
+    nonStrikerId = context.creaseOverride.nonStrikerId;
+    getBatter(strikerId);
+    getBatter(nonStrikerId);
   }
 
   for (const batter of Object.values(battingStats)) {

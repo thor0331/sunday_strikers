@@ -5,8 +5,6 @@ import { requireData, parseSupabaseError } from './supabaseErrors';
 export type AppContentInsert = Database['public']['Tables']['app_content']['Insert'];
 export type AppContentUpdate = Database['public']['Tables']['app_content']['Update'];
 
-const DEVELOPER_PHOTO_PATH = 'developer/profile';
-
 const DEFAULT_ABOUT_CONTENT = {
   description: 'Sunday Strikers is a competitive weekend cricket league that brings together passionate players for exciting matches every Sunday. Track scores, view statistics, and stay connected with the game.',
   features: [

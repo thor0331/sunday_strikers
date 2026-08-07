@@ -2,17 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useParentMatches } from './useMatches';
 import { matchRepository } from '../repositories/matchRepository';
 import { ballEventsRepository } from '../repositories/ballEventsRepository';
-import { usePlayerStatistics } from './useStatistics';
 import { useMemo } from 'react';
 import {
   computeAchievements,
   computeFormRating,
   computePlayerInningsScores,
   computeStreaks,
-  type PlayerInningsScore,
-  type Achievement,
-  type FormRating,
-  type StreakInfo,
 } from '../utils/analytics';
 
 export function usePlayerInningsHistory(playerId: string | undefined) {

@@ -9,7 +9,7 @@ import { useAllBallEvents } from '../../hooks/useBallEvents';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import { useMemo, useState, useEffect } from 'react';
-import { Trophy, Activity, Shield, Users, BarChart3, Crown, Flame, TrendingUp, Zap, Handshake, History } from 'lucide-react';
+import { Trophy, Activity, Shield, Users, BarChart3, Crown, Flame, Zap, Handshake, History } from 'lucide-react';
 import { aggregateBatting, aggregateBowling } from '../../utils/seasonStatistics';
 import { computeHighestPartnership, computeBestBowlingFigures } from '../../utils/matchAnalytics';
 import { CountUp } from '../../components/common/CountUp';
@@ -248,7 +248,6 @@ export function SeasonSummaryPage() {
                   {topRuns && (
                     <LivePlayerCard
                       label="Most Runs"
-                      playerId={topRuns.playerId}
                       playerName={playerMap.get(topRuns.playerId) ?? 'Unknown'}
                       value={`${topRuns.runs} runs`}
                       badge="Orange Cap"
@@ -259,7 +258,6 @@ export function SeasonSummaryPage() {
                   {topWickets && (
                     <LivePlayerCard
                       label="Most Wickets"
-                      playerId={topWickets.playerId}
                       playerName={playerMap.get(topWickets.playerId) ?? 'Unknown'}
                       value={`${topWickets.wickets} wickets`}
                       badge="Purple Cap"
@@ -270,7 +268,6 @@ export function SeasonSummaryPage() {
                   {currentMvp && (
                     <LivePlayerCard
                       label="Current MVP"
-                      playerId={currentMvp.playerId}
                       playerName={playerMap.get(currentMvp.playerId) ?? 'Unknown'}
                       value={`${currentMvp.score} pts`}
                       badge="🏆 MVP"
@@ -281,7 +278,6 @@ export function SeasonSummaryPage() {
                   {mostSixes && mostSixes.sixes > 0 && (
                     <LivePlayerCard
                       label="Most Sixes"
-                      playerId={mostSixes.playerId}
                       playerName={playerMap.get(mostSixes.playerId) ?? 'Unknown'}
                       value={`${mostSixes.sixes} sixes`}
                       badge="💥"
@@ -520,7 +516,6 @@ function LiveStat({ label, value, icon, accent }: { label: string; value: number
 
 function LivePlayerCard({
   label,
-  playerId,
   playerName,
   value,
   badge,
@@ -528,7 +523,6 @@ function LivePlayerCard({
   accent,
 }: {
   label: string;
-  playerId: string;
   playerName: string;
   value: string;
   badge: string;

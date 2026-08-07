@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import type { BallEvent } from '../../types/models';
 import { CircularAvatar } from './CircularAvatar';
 import { Sparkles, Zap } from 'lucide-react';
 import { computePOTMRecommendation, type POTMRecommendationParams } from '../../utils/potmRecommendation';

@@ -11,7 +11,6 @@ export function SeasonsPage() {
   const { data: allStats = [] } = usePlayerStatistics();
   const { data: players = [] } = usePlayers();
   const playerMap = useMemo(() => new Map(players.map(p => [p.id, p.display_name])), [players]);
-  const playerPhotoMap = useMemo(() => new Map(players.map(p => [p.id, p.photo_url])), [players]);
 
   function getSeasonCapWidgets(seasonId: string | null) {
     const stats = allStats.filter(s => s.season_id === seasonId);

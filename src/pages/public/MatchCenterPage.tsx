@@ -1,11 +1,10 @@
-import { PagePanel } from '../../components/common/PagePanel';
 import { useMatch, useInnings, useMatchPlayers, useParentMatches } from '../../hooks/useMatches';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useBallEvents } from '../../hooks/useBallEvents';
 import { calculateInningsState, type ScoringContext } from '../../domain/scoring/scoringEngine';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Trophy, Zap, ChevronRight, Play, CheckCircle, Clock, Target } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { GlassCard } from '../../components/common/GlassCard';
 import { EmptyState } from '../../components/common/EmptyState';
 import { MatchHeroes } from '../../components/common/MatchHeroes';

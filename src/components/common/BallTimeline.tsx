@@ -49,7 +49,7 @@ export function BallTimeline({ ballEvents, playerMap, showOvers = 3, title = 'Ba
       </div>
       <div className="space-y-3">
         <AnimatePresence initial={false}>
-          {grouped.map((over, oi) => (
+          {grouped.map((over) => (
             <motion.div
               key={over.num}
               layout

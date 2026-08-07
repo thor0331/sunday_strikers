@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDot, Trophy } from 'lucide-react';
+import { CheckCircle2, CircleDot } from 'lucide-react';
 
 interface MatchTimelineProps {
   matchStatus: string;
@@ -7,7 +7,7 @@ interface MatchTimelineProps {
   resultText?: string | null;
 }
 
-export function MatchTimeline({ matchStatus, innings1Status, innings2Status, resultText }: MatchTimelineProps) {
+export function MatchTimeline({ matchStatus, innings1Status, innings2Status }: MatchTimelineProps) {
   const isCompleted = matchStatus === 'completed';
 
   if (!isCompleted) return null;
@@ -68,7 +68,7 @@ export function VerticalMatchTimeline({ innings1Overs, innings2Overs }: { inning
   );
 }
 
-function TimelineStep({ icon, label, description, isFirst, isLast }: { icon: string; label: string; description: string; isFirst?: boolean; isLast?: boolean }) {
+function TimelineStep({ icon, label, description, isLast }: { icon: string; label: string; description: string; isFirst?: boolean; isLast?: boolean }) {
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center">

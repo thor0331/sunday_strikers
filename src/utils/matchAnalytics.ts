@@ -495,7 +495,6 @@ export function computeTurningPoint(
     if (!innings1State) return null;
     return `Highest momentum came in the 1st innings with ${innings1State.totalRuns} runs scored.`;
   }
-  const direction = maxSwing >= 10 ? (swingLabel.includes('→') ? 'shifted' : 'moved') : '';
   return `The chase flipped momentum around ${swingLabel}, swinging the win probability by ${Math.round(maxSwing)}%.`;
 }
 

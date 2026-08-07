@@ -94,7 +94,7 @@ export function MatchCreationPage() {
 
   return (
     <PagePanel title={matchId ? 'Edit Match' : 'Create Match'}>
-      <form className="grid gap-3" onSubmit={submit}>
+      <form className="grid gap-4" onSubmit={submit}>
         {isStarted && (
           <div className="p-3 bg-amber-400/10 text-amber-300 rounded border border-amber-400/30 text-sm font-semibold">
             Editing is disabled because this match has already started or completed.
@@ -165,32 +165,34 @@ export function MatchCreationPage() {
             disabled={isStarted}
           />
         </div>
-        <SelectField
-          label="Team A Captain"
-          value={teamACaptainId}
-          onChange={(event) => setTeamACaptainId(event.target.value)}
-          disabled={isStarted}
-        >
-          <option value="">Select captain</option>
-          {activePlayers.map((player) => (
-            <option key={player.id} value={player.id} disabled={player.id === teamBCaptainId}>
-              {player.display_name}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
-          label="Team B Captain"
-          value={teamBCaptainId}
-          onChange={(event) => setTeamBCaptainId(event.target.value)}
-          disabled={isStarted}
-        >
-          <option value="">Select captain</option>
-          {activePlayers.map((player) => (
-            <option key={player.id} value={player.id} disabled={player.id === teamACaptainId}>
-              {player.display_name}
-            </option>
-          ))}
-        </SelectField>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SelectField
+            label="Team A Captain"
+            value={teamACaptainId}
+            onChange={(event) => setTeamACaptainId(event.target.value)}
+            disabled={isStarted}
+          >
+            <option value="">Select captain</option>
+            {activePlayers.map((player) => (
+              <option key={player.id} value={player.id} disabled={player.id === teamBCaptainId}>
+                {player.display_name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Team B Captain"
+            value={teamBCaptainId}
+            onChange={(event) => setTeamBCaptainId(event.target.value)}
+            disabled={isStarted}
+          >
+            <option value="">Select captain</option>
+            {activePlayers.map((player) => (
+              <option key={player.id} value={player.id} disabled={player.id === teamACaptainId}>
+                {player.display_name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
         <SelectField
           label="Match Format"
           value={matchFormat}
@@ -207,12 +209,12 @@ export function MatchCreationPage() {
           disabled={isStarted}
         />
 
-        <div className="flex gap-2">
-          <Button disabled={createMatch.isPending || updateMatch.isPending || isStarted}>
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
+          <Button disabled={createMatch.isPending || updateMatch.isPending || isStarted} className="sm:flex-none">
             {matchId ? 'Save Match' : 'Create Match'}
           </Button>
           {matchId && (
-            <Button type="button" variant="secondary" onClick={() => navigate('/admin')}>
+            <Button type="button" variant="secondary" onClick={() => navigate('/admin')} className="sm:flex-none">
               Cancel
             </Button>
           )}

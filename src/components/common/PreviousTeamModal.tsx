@@ -64,8 +64,6 @@ export function PreviousTeamModal({ isOpen, onClose, onImport, matches, currentM
     };
   }, [isOpen, onClose]);
 
-  const selectedMatch = eligibleMatches.find((m) => m.id === selectedId);
-
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   }

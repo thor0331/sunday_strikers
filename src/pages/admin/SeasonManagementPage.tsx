@@ -60,14 +60,16 @@ export function SeasonManagementPage() {
   return (
     <div className="space-y-4">
       <PagePanel title="Manage Seasons">
-        <form className="grid gap-3" onSubmit={submit}>
+        <form className="grid gap-4" onSubmit={submit}>
           <TextField label="Season Name" value={name} onChange={(event) => setName(event.target.value)} required />
-          <TextField label="Start Date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
-          <TextField label="End Date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          <div className="flex gap-2">
-            <Button disabled={createSeason.isPending || updateSeason.isPending}>{editingId ? 'Save Season' : 'Create Season'}</Button>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField label="Start Date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
+            <TextField label="End Date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+          </div>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row">
+            <Button disabled={createSeason.isPending || updateSeason.isPending} className="sm:flex-none">{editingId ? 'Save Season' : 'Create Season'}</Button>
             {editingId ? (
-              <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
+              <Button type="button" variant="secondary" onClick={() => setEditingId(null)} className="sm:flex-none">
                 Cancel
               </Button>
             ) : null}
@@ -82,14 +84,14 @@ export function SeasonManagementPage() {
           {seasons.map((season) => (
             <article key={season.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-sm backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold text-white">{season.name}</h3>
-                  <p className="text-sm text-slate-300">
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-semibold text-white">{season.name}</h3>
+                  <p className="truncate text-sm text-slate-300">
                     {season.start_date} {season.end_date ? `to ${season.end_date}` : ''}
                   </p>
                   {season.is_active ? <p className="mt-1 text-sm font-semibold text-accent-green">Active season</p> : null}
                 </div>
-                <div className="grid gap-2">
+                <div className="grid shrink-0 grid-cols-3 gap-1.5 sm:grid-cols-1">
                   <Button
                     type="button"
                     variant="secondary"

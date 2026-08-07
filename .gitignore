@@ -1,5 +1,29 @@
+# ===== Dependencies =====
 node_modules/
+
+# ===== Build output =====
 dist/
+*.tsbuildinfo
+
+# ===== Environment / secrets (never commit real values) =====
 .env
 .env.local
-*.tsbuildinfo
+
+# ===== QA / Playwright artifacts =====
+.qa-e2e/
+playwright-report/
+test-results/
+
+# ===== Local logs =====
+*.log
+dev-server.log
+$log
+
+# ===== Temp files / OS junk =====
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# ===== Tool dumps =====
+ign

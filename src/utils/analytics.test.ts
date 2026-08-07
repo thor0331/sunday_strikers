@@ -36,6 +36,7 @@ function ball(partial: Partial<BallEvent>): BallEvent {
     isWicket: false,
     wicketType: null,
     dismissedPlayerId: null,
+    incomingBatsmanId: null,
     fielderId: null,
     isLegalDelivery: true,
     notes: null,

@@ -39,6 +39,7 @@ export interface BallEvent {
   isWicket: boolean;
   wicketType: WicketType | null;
   dismissedPlayerId: string | null;
+  incomingBatsmanId: string | null;
   fielderId: string | null;
   isLegalDelivery: boolean;
   notes: string | null;

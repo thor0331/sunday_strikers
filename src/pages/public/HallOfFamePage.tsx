@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { GlassCard } from '../../components/common/GlassCard';
 import { CircularAvatar } from '../../components/common/CircularAvatar';
 import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
-import { Trophy, Target, Star, Award, Flame, Zap, Shield, TrendingUp, Users, Crown, Swords, Medal } from 'lucide-react';
+import { Trophy, Target, Star, Award, Flame, Zap, Shield, TrendingUp, Crown, Swords, Medal } from 'lucide-react';
 import { computeMostRuns, computeMostWickets, computeMostPotm, computeMostMatchesPlayed, computeHighestScore, computeBestBowlingFromStats, computeMostSixes, computeHighestStrikeRate, computeBestEconomy, computeMostWinsAsCaptain, computeLongestWinningStreak, computeMostSeasonsPlayed } from '../../utils/hallOfFame';
 import type { HallOfFameRecord } from '../../utils/hallOfFame';
 import { SelectField } from '../../components/forms/Field';
@@ -37,7 +37,7 @@ export function HallOfFamePage() {
     add(computeMostSixes(stats, playerMap, photoMap), 'Most Sixes', <span className="text-lg font-bold">6</span>, 'from-pink-400 to-pink-600');
     add(computeHighestStrikeRate(stats, playerMap, photoMap, minInnings), 'Highest Strike Rate', <Zap className="w-5 h-5" />, 'from-yellow-400 to-yellow-600');
     add(computeBestEconomy(stats, playerMap, photoMap, minOvers), 'Best Economy', <Shield className="w-5 h-5" />, 'from-teal-400 to-teal-600');
-    add(computeMostWinsAsCaptain(matches, players, playerMap, photoMap), 'Most Wins as Captain', <Swords className="w-5 h-5" />, 'from-orange-400 to-orange-600');
+    add(computeMostWinsAsCaptain(matches, playerMap, photoMap), 'Most Wins as Captain', <Swords className="w-5 h-5" />, 'from-orange-400 to-orange-600');
     add(computeLongestWinningStreak(matches, players, playerMap, photoMap), 'Longest Winning Streak', <Medal className="w-5 h-5" />, 'from-cyan-400 to-cyan-600');
     add(computeMostSeasonsPlayed(stats, playerMap, photoMap), 'Most Seasons Played', <Trophy className="w-5 h-5" />, 'from-violet-400 to-violet-600');
     return r;

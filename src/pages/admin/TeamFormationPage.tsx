@@ -149,7 +149,7 @@ export function TeamFormationPage() {
       )}
 
       <PagePanel title="Captain Selection">
-        <div className="grid gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <SelectField label="Team A Captain" value={resolvedTeamACaptainId} onChange={(event) => setTeamACaptainId(event.target.value)}>
             <option value="">Select captain</option>
             {selectablePlayers.map((player) => (
@@ -192,8 +192,8 @@ export function TeamFormationPage() {
           {selectablePlayers.map((player) => {
             const lockedTeam = player.id === resolvedTeamACaptainId ? 'team_a' : player.id === resolvedTeamBCaptainId ? 'team_b' : null;
             return (
-              <div key={player.id} className="grid grid-cols-[1fr_9rem] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 shadow-sm backdrop-blur-xl">
-                <span className="font-medium text-white/90">{player.display_name}</span>
+              <div key={player.id} className="grid grid-cols-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 shadow-sm backdrop-blur-xl sm:grid-cols-[1fr_10rem]">
+                <span className="truncate font-medium text-white/90">{player.display_name}</span>
                 <SelectField
                   value={lockedTeam ?? teamAssignments[player.id] ?? ''}
                   disabled={Boolean(lockedTeam)}
@@ -207,13 +207,14 @@ export function TeamFormationPage() {
             );
           })}
         </div>
-        <div className="mt-4 flex gap-2">
-          <Button type="button" disabled={saveTeams.isPending || setCaptainsMutation.isPending || buildAssignments().length < 2} onClick={() => void save()}>
+        <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row">
+          <Button type="button" disabled={saveTeams.isPending || setCaptainsMutation.isPending || buildAssignments().length < 2} onClick={() => void save()} className="sm:flex-none">
             Save Teams
           </Button>
           <Button
             type="button"
             variant="secondary"
+            className="sm:flex-none"
             onClick={() => {
               resetTeams();
               setBattingOrders({});

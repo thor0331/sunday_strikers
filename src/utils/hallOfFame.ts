@@ -11,10 +11,6 @@ export interface HallOfFameRecord {
 type PlayerMap = Map<string, string>;
 type PhotoMap = Map<string, string | null>;
 
-function topRecord(records: HallOfFameRecord[]): HallOfFameRecord | null {
-  return records.length > 0 ? records[0] : null;
-}
-
 function aggregateStats(stats: PlayerStatistics[]): Map<string, PlayerStatistics> {
   const map = new Map<string, PlayerStatistics>();
   for (const s of stats) {
@@ -130,7 +126,7 @@ export function computeBestEconomy(stats: PlayerStatistics[], playerMap: PlayerM
   return { playerId: top.player_id, playerName: playerMap.get(top.player_id) ?? 'Unknown', playerPhoto: photoMap.get(top.player_id) ?? null, value: eco, subtitle: `${top.wickets} wickets in ${top.balls_bowled} balls • Min ${minOvers} overs` };
 }
 
-export function computeMostWinsAsCaptain(matches: Match[], players: Player[], playerMap: PlayerMap, photoMap: PhotoMap): HallOfFameRecord | null {
+export function computeMostWinsAsCaptain(matches: Match[], playerMap: PlayerMap, photoMap: PhotoMap): HallOfFameRecord | null {
   const completed = matches.filter((m) => m.status === 'completed');
   const captainWins = new Map<string, number>();
   for (const m of completed) {

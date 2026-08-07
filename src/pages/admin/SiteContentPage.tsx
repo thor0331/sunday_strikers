@@ -7,7 +7,7 @@ import { useAvatarViewerStore } from '../../stores/avatarViewerStore';
 import { useToastStore } from '../../stores/toastStore';
 import type { AboutPageContent, DeveloperCard } from '../../types/models';
 import { useState, useEffect, type FormEvent } from 'react';
-import { Camera, Loader2, AlertTriangle, RefreshCw, Plus, Trash2, ExternalLink } from 'lucide-react';
+import { Camera, Loader2, AlertTriangle, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { Skeleton } from '../../components/common/Skeleton';
 
 const EMPTY_DEV: DeveloperCard = { name: '', role: '', photoUrl: '', email: '', github: '', linkedin: '', website: '' };
@@ -171,7 +171,7 @@ export function SiteContentPage() {
               <Button type="button" variant="secondary" className="text-xs px-3 py-1.5" onClick={addDeveloper}><Plus className="w-3 h-3 mr-1 inline" />Add</Button>
             </div>
             {developers.map((dev, i) => (
-              <div key={i} className="rounded-xl border border-white/10 p-4 space-y-3 bg-white/60">
+              <div key={i} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-400">Developer {i + 1}</span>
                   <button type="button" onClick={() => removeDeveloper(i)} className="text-red-400 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
@@ -190,8 +190,8 @@ export function SiteContentPage() {
             ))}
           </div>
 
-          <div className="flex gap-2">
-            <Button disabled={updateContent.isPending}>{updateContent.isPending ? 'Saving...' : 'Save Changes'}</Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button disabled={updateContent.isPending} className="sm:flex-none">{updateContent.isPending ? 'Saving...' : 'Save Changes'}</Button>
           </div>
           <MutationStatus error={updateContent.error} success={null} />
         </form>

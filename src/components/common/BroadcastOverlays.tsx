@@ -54,7 +54,7 @@ const deltaRuns = safeDelta.reduce(
   }
 
   // Latest ball classification — primary banner.
-const latest = safeDelta.at(-1);
+const latest = safeDelta[safeDelta.length - 1];
 
 if (!latest) {
   console.warn("Broadcast: latest ball event is undefined", {
@@ -64,13 +64,6 @@ if (!latest) {
 
   return events;
 }
-console.log("Broadcast Debug", {
-    delta,
-    safeDelta,
-    latest,
-    deltaLength: delta.length,
-    safeLength: safeDelta.length
-});
 const runs = latest.runsBatter + latest.runsExtra;
   if (latest.isWicket) {
     events.push({ id: ++broadcastEventId, kind: 'wicket', title: 'WICKET', subtitle: latest.wicketType ?? undefined });

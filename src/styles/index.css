@@ -10,6 +10,7 @@
 
 html {
   background: #07111F;
+  overflow-x: clip;
 }
 
 body {
@@ -19,6 +20,19 @@ body {
   color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+@media (min-width: 1024px) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+* {
+  min-width: 0;
 }
 
 *::selection {
@@ -33,9 +47,54 @@ textarea {
   font: inherit;
 }
 
+button,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+/* Prevent iOS auto-zoom when focusing inputs */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 :focus-visible {
   outline: 2px solid #22C55E;
   outline-offset: 2px;
+}
+
+/* Safe-area helpers for notched phones */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ===== Horizontal overflow guard ===== */
+.overflow-x-clip {
+  overflow-x: clip;
+}
+
+/* ===== Touch-optimized tap target ===== */
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ===== Hide scrollbar (horizontal nav rails) ===== */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* ===== Glassmorphism Base (Dark Theme) ===== */

@@ -19,7 +19,7 @@ const legendaryColors = {
   no_ball: 'bg-amber-100 text-amber-700 border-amber-300',
 };
 
-export function getLastOverBalls(events: BallEvent[], legalBalls: number): LastOverBall[] {
+export function getLastOverBalls(events: BallEvent[], _legalBalls: number): LastOverBall[] {
   if (events.length === 0) return [];
   const lastEvent = events[events.length - 1];
   const currentOverNumber = lastEvent.overNumber;

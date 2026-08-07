@@ -26,6 +26,7 @@ function toBallEvent(row: BallEventRow): BallEvent {
     isWicket: row.is_wicket,
     wicketType: row.wicket_type,
     dismissedPlayerId: row.dismissed_player_id,
+    incomingBatsmanId: row.incoming_batsman_id,
     fielderId: row.fielder_id,
     isLegalDelivery: row.is_legal_delivery,
     notes: row.notes,

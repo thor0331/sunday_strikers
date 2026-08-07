@@ -3,7 +3,6 @@ import { statisticsRepository } from '../repositories/statisticsRepository';
 import type { Database } from '../types/database';
 
 type BallEventRow = Database['public']['Tables']['ball_events']['Row'];
-type MatchRow = Database['public']['Tables']['matches']['Row'];
 
 interface PlayerSeasonStats {
   playerId: string;

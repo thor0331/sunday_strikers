@@ -67,8 +67,8 @@ export function PlayerManagementPage() {
   return (
     <div className="space-y-4">
       <PagePanel title="Manage Players">
-        <form className="grid gap-3" onSubmit={submit}>
-          <TextField label="Display Name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
+        <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+          <TextField label="Display Name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required className="sm:col-span-2" />
           <TextField label="Full Name" value={fullName} onChange={(event) => setFullName(event.target.value)} />
           <TextField label="Phone" value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" />
           <TextField label="Batting Style" value={battingStyle} onChange={(event) => setBattingStyle(event.target.value)} />
@@ -77,15 +77,17 @@ export function PlayerManagementPage() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </SelectField>
-          <div className="flex gap-2">
-            <Button disabled={createPlayer.isPending || updatePlayer.isPending}>{editingPlayer ? 'Save Player' : 'Add Player'}</Button>
+          <div className="flex flex-col-reverse gap-3 sm:col-span-2 sm:flex-row">
+            <Button disabled={createPlayer.isPending || updatePlayer.isPending} className="sm:flex-none">{editingPlayer ? 'Save Player' : 'Add Player'}</Button>
             {editingPlayer ? (
-              <Button type="button" variant="secondary" onClick={() => setEditingPlayer(null)}>
+              <Button type="button" variant="secondary" onClick={() => setEditingPlayer(null)} className="sm:flex-none">
                 Cancel
               </Button>
             ) : null}
           </div>
-          <MutationStatus error={createPlayer.error || updatePlayer.error} success={createPlayer.isSuccess || updatePlayer.isSuccess ? 'Player saved.' : null} />
+          <div className="sm:col-span-2">
+            <MutationStatus error={createPlayer.error || updatePlayer.error} success={createPlayer.isSuccess || updatePlayer.isSuccess ? 'Player saved.' : null} />
+          </div>
         </form>
       </PagePanel>
 
@@ -108,7 +110,7 @@ export function PlayerManagementPage() {
                   <p className="text-sm text-slate-300">{player.status}</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button type="button" variant="secondary" onClick={() => setEditingPlayer(player)}>
                   Edit
                 </Button>

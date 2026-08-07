@@ -66,21 +66,21 @@ export interface Database {
         Relationships: [];
       };
       innings: {
-        Row: { id: string; match_id: string; innings_number: number; batting_team: Database['public']['Enums']['innings_side']; bowling_team: Database['public']['Enums']['innings_side']; status: Database['public']['Enums']['innings_status']; target_runs: number | null; started_at: string | null; completed_at: string | null; created_at: string };
-        Insert: { id?: string; match_id: string; innings_number: number; batting_team: Database['public']['Enums']['innings_side']; bowling_team: Database['public']['Enums']['innings_side']; status?: Database['public']['Enums']['innings_status']; target_runs?: number | null; started_at?: string | null; completed_at?: string | null; created_at?: string };
-        Update: { id?: string; match_id?: string; innings_number?: number; batting_team?: Database['public']['Enums']['innings_side']; bowling_team?: Database['public']['Enums']['innings_side']; status?: Database['public']['Enums']['innings_status']; target_runs?: number | null; started_at?: string | null; completed_at?: string | null; created_at?: string };
+        Row: { id: string; match_id: string; innings_number: number; batting_team: Database['public']['Enums']['innings_side']; bowling_team: Database['public']['Enums']['innings_side']; status: Database['public']['Enums']['innings_status']; target_runs: number | null; started_at: string | null; completed_at: string | null; current_striker_id: string | null; current_non_striker_id: string | null; current_bowler_id: string | null; created_at: string };
+        Insert: { id?: string; match_id: string; innings_number: number; batting_team: Database['public']['Enums']['innings_side']; bowling_team: Database['public']['Enums']['innings_side']; status?: Database['public']['Enums']['innings_status']; target_runs?: number | null; started_at?: string | null; completed_at?: string | null; current_striker_id?: string | null; current_non_striker_id?: string | null; current_bowler_id?: string | null; created_at?: string };
+        Update: { id?: string; match_id?: string; innings_number?: number; batting_team?: Database['public']['Enums']['innings_side']; bowling_team?: Database['public']['Enums']['innings_side']; status?: Database['public']['Enums']['innings_status']; target_runs?: number | null; started_at?: string | null; completed_at?: string | null; current_striker_id?: string | null; current_non_striker_id?: string | null; current_bowler_id?: string | null; created_at?: string };
         Relationships: [];
       };
       ball_events: {
         Row: {
           id: string; match_id: string; innings_id: string; sequence_number: number; over_number: number; ball_in_over: number; striker_id: string; non_striker_id: string; bowler_id: string;
           runs_batter: number; runs_extra: number; extra_type: Database['public']['Enums']['extra_type'] | null; is_wicket: boolean; wicket_type: Database['public']['Enums']['wicket_type'] | null;
-          dismissed_player_id: string | null; fielder_id: string | null; is_legal_delivery: boolean; notes: string | null; created_by: string | null; created_at: string;
+          dismissed_player_id: string | null; incoming_batsman_id: string | null; fielder_id: string | null; is_legal_delivery: boolean; notes: string | null; created_by: string | null; created_at: string;
         };
         Insert: {
           id?: string; match_id: string; innings_id: string; sequence_number: number; over_number: number; ball_in_over: number; striker_id: string; non_striker_id: string; bowler_id: string;
           runs_batter?: number; runs_extra?: number; extra_type?: Database['public']['Enums']['extra_type'] | null; is_wicket?: boolean; wicket_type?: Database['public']['Enums']['wicket_type'] | null;
-          dismissed_player_id?: string | null; fielder_id?: string | null; is_legal_delivery: boolean; notes?: string | null; created_by?: string | null; created_at?: string;
+          dismissed_player_id?: string | null; incoming_batsman_id?: string | null; fielder_id?: string | null; is_legal_delivery: boolean; notes?: string | null; created_by?: string | null; created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['ball_events']['Insert']>;
         Relationships: [];

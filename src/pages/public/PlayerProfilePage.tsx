@@ -9,7 +9,7 @@ import { CareerStats } from '../../components/common/CareerStats';
 import { RecentFormHeatmap } from '../../components/common/RecentFormHeatmap';
 import { computeRecentForm } from '../../utils/recentForm';
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Trophy, Target, TrendingUp, Flame, Award, Star, Shield, Swords, Zap, Medal } from 'lucide-react';
+import { ArrowLeft, Trophy, Target, TrendingUp, Flame, Star, Shield, Swords, Zap } from 'lucide-react';
 
 export function PlayerProfilePage() {
   const { playerId = '' } = useParams();
@@ -106,7 +106,6 @@ export function PlayerProfilePage() {
 
   const avg = aggregatedStats && aggregatedStats.outs > 0 ? (aggregatedStats.runs / aggregatedStats.outs).toFixed(1) : '-';
   const sr = aggregatedStats && aggregatedStats.balls_faced > 0 ? ((aggregatedStats.runs / aggregatedStats.balls_faced) * 100).toFixed(1) : '-';
-  const bowlAvg = aggregatedStats && aggregatedStats.wickets > 0 ? (aggregatedStats.runs_conceded / aggregatedStats.wickets).toFixed(1) : '-';
   const eco = aggregatedStats && aggregatedStats.balls_bowled > 0 ? (aggregatedStats.runs_conceded * 6 / aggregatedStats.balls_bowled).toFixed(1) : '-';
 
   return (

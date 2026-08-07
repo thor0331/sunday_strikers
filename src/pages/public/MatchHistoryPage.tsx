@@ -4,7 +4,7 @@ import { useMatchHistory } from '../../hooks/useMatches';
 import { useEffect } from 'react';
 import { Trophy, AlertCircle, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Skeleton, SkeletonCard } from '../../components/common/Skeleton';
+import { SkeletonCard } from '../../components/common/Skeleton';
 
 export function MatchHistoryPage() {
   const { data: history = [], isLoading, error } = useMatchHistory();

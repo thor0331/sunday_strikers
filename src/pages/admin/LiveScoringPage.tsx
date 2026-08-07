@@ -113,6 +113,8 @@ export function LiveScoringPage() {
   const [hasBowlerBeenChangedThisOver, setHasBowlerBeenChangedThisOver] = useState(false);
   const [hasBatsmanBeenChangedThisOver, setHasBatsmanBeenChangedThisOver] = useState(false);
 
+  const [localCreaseOverride, setLocalCreaseOverride] = useState<{ strikerId: string; nonStrikerId: string } | null>(null);
+
   const [superOverName, setSuperOverName] = useState('Super Over');
   const [playerOfMatchId, setPlayerOfMatchId] = useState('');
 
@@ -200,7 +202,6 @@ export function LiveScoringPage() {
   }, [activeInnings, matchPlayers]);
 
   const battingSquadIds = useMemo(() => squads.batting.map((mp) => mp.player_id), [squads.batting]);
-  const bowlingSquadIds = useMemo(() => squads.bowling.map((mp) => mp.player_id), [squads.bowling]);
 
   const maxWickets = useMemo(() => {
     if (!match) return 0;
@@ -213,8 +214,40 @@ export function LiveScoringPage() {
     return [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
   }, [ballEvents]);
 
-  const resolvedOpeningStrikerId = firstEvent?.strikerId || openingStrikerId;
-  const resolvedOpeningNonStrikerId = firstEvent?.nonStrikerId || openingNonStrikerId;
+  const resolvedOpeningStrikerId = firstEvent?.strikerId || activeInnings?.current_striker_id || openingStrikerId;
+  const resolvedOpeningNonStrikerId = firstEvent?.nonStrikerId || activeInnings?.current_non_striker_id || openingNonStrikerId;
+
+  // The crease is normally derived by replaying ball_events. A batsman change made before
+  // any delivery is reflected is invisible to that replay, so it is persisted on the innings
+  // row (current_striker_id/current_non_striker_id) and re-applied as an override until a
+  // delivery consumes it. The store clears those columns after every ball, so the persisted
+  // pair exists only while a change is still un-reflected. localCreaseOverride mirrors that
+  // pending pair in-session; it is seeded once from the row on mount and cleared after every
+  // ball, so normal rotations are never overridden (which would corrupt the ball records).
+  const currentCreaseOverride = localCreaseOverride;
+
+  const creaseOverrideForEngine = currentCreaseOverride ?? null;
+
+  useEffect(() => {
+    if (activeInnings?.current_striker_id && activeInnings?.current_non_striker_id) {
+      setOpeningStrikerId(activeInnings.current_striker_id);
+      setOpeningNonStrikerId(activeInnings.current_non_striker_id);
+    }
+    if (activeInnings?.current_bowler_id) {
+      setOpeningBowlerId(activeInnings.current_bowler_id);
+    }
+  }, [activeInnings?.current_striker_id, activeInnings?.current_non_striker_id, activeInnings?.current_bowler_id]);
+
+  const seededCreaseOverrideRef = useRef(false);
+  useEffect(() => {
+    if (!seededCreaseOverrideRef.current && activeInnings?.current_striker_id && activeInnings?.current_non_striker_id) {
+      seededCreaseOverrideRef.current = true;
+      setLocalCreaseOverride({
+        strikerId: activeInnings.current_striker_id,
+        nonStrikerId: activeInnings.current_non_striker_id
+      });
+    }
+  }, [activeInnings?.current_striker_id, activeInnings?.current_non_striker_id]);
 
   const inningsState = useMemo(() => {
     if (!activeInnings || !match || !resolvedOpeningStrikerId || !resolvedOpeningNonStrikerId) return null;
@@ -234,7 +267,8 @@ export function LiveScoringPage() {
       battingOrder,
       oversPerInnings: match.overs_per_innings,
       playersPerTeam: match.players_per_team,
-      targetRuns: activeInnings.target_runs
+      targetRuns: activeInnings.target_runs,
+      creaseOverride: creaseOverrideForEngine
     };
 
     try {
@@ -243,7 +277,7 @@ export function LiveScoringPage() {
       console.error('Error calculating innings state:', err);
       return null;
     }
-  }, [activeInnings, match, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, battingSquadIds, ballEvents]);
+  }, [activeInnings, match, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, battingSquadIds, ballEvents, creaseOverrideForEngine]);
 
   const remainingBatsmen = useMemo(() => {
     if (!inningsState) return battingSquadIds;
@@ -276,14 +310,16 @@ export function LiveScoringPage() {
   }, [ballEvents]);
 
   useEffect(() => {
-    if (inningsState?.currentBowlerId) {
+    if (activeInnings?.current_bowler_id) {
+      setCurrentBowlerId(activeInnings.current_bowler_id);
+    } else if (inningsState?.currentBowlerId) {
       setCurrentBowlerId(inningsState.currentBowlerId);
     } else if (lastEvent?.bowlerId) {
       setCurrentBowlerId(lastEvent.bowlerId);
     } else if (openingBowlerId) {
       setCurrentBowlerId(openingBowlerId);
     }
-  }, [inningsState?.currentBowlerId, lastEvent?.bowlerId, openingBowlerId]);
+  }, [activeInnings?.current_bowler_id, inningsState?.currentBowlerId, lastEvent?.bowlerId, openingBowlerId]);
 
   useEffect(() => {
     setStartInningsRequested(false);
@@ -372,22 +408,25 @@ export function LiveScoringPage() {
   }, [inningsState, ballEvents, isOverComplete, currentBowlerId, lastEvent]);
 
   const legalDeliveriesInCurrentOver = useMemo(() => {
-    if (!inningsState || ballEvents.length === 0) return 0;
-    const currentOver = Math.floor(inningsState.legalBalls / 6);
-    return ballEvents.filter((e) => e.overNumber === currentOver && e.isLegalDelivery).length;
-  }, [inningsState, ballEvents]);
+    const legal = ballEvents.filter((e) => e.isLegalDelivery);
+    if (legal.length === 0) return 0;
+    const currentOver = Math.floor(legal.length / 6);
+    return legal.filter((e) => e.overNumber === currentOver).length;
+  }, [ballEvents]);
 
   const canChangeBowler = useMemo(() => {
     if (!inningsState) return false;
+    if (hasBowlerBeenChangedThisOver) return false;
     if (ballEvents.length === 0) return true;
-    if (legalDeliveriesInCurrentOver === 0 && !hasBowlerBeenChangedThisOver) return true;
+    if (legalDeliveriesInCurrentOver === 0) return true;
     return false;
   }, [inningsState, ballEvents, legalDeliveriesInCurrentOver, hasBowlerBeenChangedThisOver]);
 
   const canChangeBatsmen = useMemo(() => {
     if (!inningsState) return false;
+    if (hasBatsmanBeenChangedThisOver) return false;
     if (ballEvents.length === 0) return true;
-    if (legalDeliveriesInCurrentOver === 0 && !hasBatsmanBeenChangedThisOver) return true;
+    if (legalDeliveriesInCurrentOver === 0) return true;
     return false;
   }, [inningsState, ballEvents, legalDeliveriesInCurrentOver, hasBatsmanBeenChangedThisOver]);
 
@@ -422,7 +461,10 @@ export function LiveScoringPage() {
       inningsId: activeInnings.id,
       input: {
         status: 'in_progress',
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
+        current_striker_id: openingStrikerId,
+        current_non_striker_id: openingNonStrikerId,
+        current_bowler_id: openingBowlerId
       }
     });
 
@@ -431,6 +473,7 @@ export function LiveScoringPage() {
     }
 
     setCurrentBowlerId(openingBowlerId);
+    setLocalCreaseOverride({ strikerId: openingStrikerId, nonStrikerId: openingNonStrikerId });
     setHasBowlerBeenChangedThisOver(false);
     setHasBatsmanBeenChangedThisOver(false);
     setIncomingBatsmanId(null);
@@ -439,9 +482,14 @@ export function LiveScoringPage() {
     playSound('click');
   }
 
+  // A bowled delivery reflects whatever crease was current, so any pending manual
+  // change is now baked into the ball record and the override can be released.
+  function consumeCreaseOverride() {
+    setLocalCreaseOverride(null);
+  }
+
   async function handleLogBall(runsBatter: 0 | 1 | 2 | 3 | 4 | 6) {
     if (!activeInnings || !inningsState || !currentBowlerId) return;
-
     setShowWicketForm(false);
     setWicketType('bowled');
     setDismissedPlayerId('');
@@ -482,6 +530,7 @@ export function LiveScoringPage() {
         targetRuns: activeInnings.target_runs
       }
     });
+    consumeCreaseOverride();
 
     setIncomingBatsmanId(null);
     emitScoreEvent('runs', `+${runsBatter}`);
@@ -545,6 +594,7 @@ export function LiveScoringPage() {
         targetRuns: activeInnings.target_runs
       }
     });
+    consumeCreaseOverride();
 
     setShowExtraForm(false);
     setSelectedExtraType(null);
@@ -585,6 +635,7 @@ export function LiveScoringPage() {
       is_wicket: true,
       wicket_type: wicketType,
       dismissed_player_id: dismissedPlayerId,
+      incoming_batsman_id: incomingBatsmanId,
       fielder_id: fielderId || null,
       is_legal_delivery: wicketIsLegal
     };
@@ -601,6 +652,7 @@ export function LiveScoringPage() {
         targetRuns: activeInnings.target_runs
       }
     });
+    consumeCreaseOverride();
 
     emitScoreEvent('wicket', 'WICKET');
     playSound('wicket');
@@ -630,21 +682,25 @@ export function LiveScoringPage() {
       const sortedEvents = [...ballEvents].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
       const previousBall = sortedEvents.length >= 2 ? sortedEvents[sortedEvents.length - 2] : null;
 
-      await undoLastBall.mutateAsync({
+    const result = await undoLastBall.mutateAsync({
+      inningsId: activeInnings.id,
+      context: {
         inningsId: activeInnings.id,
-        context: {
-          inningsId: activeInnings.id,
-          openingStrikerId: resolvedOpeningStrikerId,
-          openingNonStrikerId: resolvedOpeningNonStrikerId,
-          battingOrder: determineBattingOrder(battingSquadIds, ballEvents, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, incomingBatsmanId),
-          oversPerInnings: match!.overs_per_innings,
-          playersPerTeam: match!.players_per_team,
-          targetRuns: activeInnings.target_runs
-        }
-      });
+        openingStrikerId: resolvedOpeningStrikerId,
+        openingNonStrikerId: resolvedOpeningNonStrikerId,
+        battingOrder: determineBattingOrder(battingSquadIds, ballEvents, resolvedOpeningStrikerId, resolvedOpeningNonStrikerId, incomingBatsmanId),
+        oversPerInnings: match!.overs_per_innings,
+        playersPerTeam: match!.players_per_team,
+        targetRuns: activeInnings.target_runs
+      }
+    });
 
-      setIncomingBatsmanId(null);
-      setShowWicketForm(false);
+    if (result?.restoredCrease) {
+      setLocalCreaseOverride(result.restoredCrease);
+    }
+
+    setIncomingBatsmanId(null);
+    setShowWicketForm(false);
       setShowExtraForm(false);
       setSelectedExtraType(null);
       setWicketType('bowled');
@@ -672,7 +728,7 @@ export function LiveScoringPage() {
     }
   }
 
-  function handleChangeBowler(newBowlerId: string) {
+  async function handleChangeBowler(newBowlerId: string) {
     if (!newBowlerId || !canChangeBowler) return;
 
     if (newBowlerId === inningsState?.strikerId || newBowlerId === inningsState?.nonStrikerId) {
@@ -682,9 +738,16 @@ export function LiveScoringPage() {
 
     setCurrentBowlerId(newBowlerId);
     setHasBowlerBeenChangedThisOver(true);
+    if (activeInnings) {
+      try {
+        await updateInnings.mutateAsync({ inningsId: activeInnings.id, input: { current_bowler_id: newBowlerId } });
+      } catch (err) {
+        console.error('Persist bowler change failed:', err);
+      }
+    }
   }
 
-  function handleChangeStriker(newStrikerId: string) {
+  async function handleChangeStriker(newStrikerId: string) {
     if (!newStrikerId || !canChangeBatsmen || !inningsState) return;
 
     if (newStrikerId === inningsState.nonStrikerId) {
@@ -697,11 +760,23 @@ export function LiveScoringPage() {
       return;
     }
 
+    const override = { strikerId: newStrikerId, nonStrikerId: inningsState.nonStrikerId! };
+    setLocalCreaseOverride(override);
     setIncomingBatsmanId(newStrikerId);
     setHasBatsmanBeenChangedThisOver(true);
+    if (activeInnings) {
+      try {
+        await updateInnings.mutateAsync({
+          inningsId: activeInnings.id,
+          input: { current_striker_id: newStrikerId, current_non_striker_id: inningsState.nonStrikerId! }
+        });
+      } catch (err) {
+        console.error('Persist striker change failed:', err);
+      }
+    }
   }
 
-  function handleChangeNonStriker(newNonStrikerId: string) {
+  async function handleChangeNonStriker(newNonStrikerId: string) {
     if (!newNonStrikerId || !canChangeBatsmen || !inningsState) return;
 
     if (newNonStrikerId === inningsState.strikerId) {
@@ -714,8 +789,20 @@ export function LiveScoringPage() {
       return;
     }
 
+    const override = { strikerId: inningsState.strikerId!, nonStrikerId: newNonStrikerId };
+    setLocalCreaseOverride(override);
     setIncomingBatsmanId(newNonStrikerId);
     setHasBatsmanBeenChangedThisOver(true);
+    if (activeInnings) {
+      try {
+        await updateInnings.mutateAsync({
+          inningsId: activeInnings.id,
+          input: { current_striker_id: inningsState.strikerId!, current_non_striker_id: newNonStrikerId }
+        });
+      } catch (err) {
+        console.error('Persist non-striker change failed:', err);
+      }
+    }
   }
 
   async function handleCompleteInnings1() {
@@ -728,7 +815,10 @@ export function LiveScoringPage() {
         inningsId: activeInnings.id,
         input: {
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          current_striker_id: null,
+          current_non_striker_id: null,
+          current_bowler_id: null
         }
       });
 
@@ -746,6 +836,7 @@ export function LiveScoringPage() {
       setOpeningNonStrikerId('');
       setOpeningBowlerId('');
       setCurrentBowlerId(null);
+      setLocalCreaseOverride(null);
       setIncomingBatsmanId(null);
       showToast('Innings 1 complete. Target set.', 'info');
       playSound('click');
@@ -761,7 +852,10 @@ export function LiveScoringPage() {
         inningsId: innings2.id,
         input: {
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          current_striker_id: null,
+          current_non_striker_id: null,
+          current_bowler_id: null
         }
       });
 
@@ -793,6 +887,7 @@ export function LiveScoringPage() {
               isWicket: row.is_wicket,
               wicketType: row.wicket_type,
               dismissedPlayerId: row.dismissed_player_id,
+              incomingBatsmanId: row.incoming_batsman_id,
               fielderId: row.fielder_id,
               isLegalDelivery: row.is_legal_delivery,
               notes: row.notes,
@@ -817,7 +912,6 @@ export function LiveScoringPage() {
             const inn1State = calculateInningsState(inn1Context, events);
             innings1Runs = inn1State.totalRuns;
 
-            console.log('[Match Completion] Innings 1 calculated runs:', innings1Runs);
           }
         } catch (error) {
           console.error('[Match Completion] Error fetching Innings 1 data:', error);
@@ -852,6 +946,7 @@ export function LiveScoringPage() {
             isWicket: row.is_wicket,
             wicketType: row.wicket_type,
             dismissedPlayerId: row.dismissed_player_id,
+            incomingBatsmanId: row.incoming_batsman_id,
             fielderId: row.fielder_id,
             isLegalDelivery: row.is_legal_delivery,
             notes: row.notes,
@@ -884,8 +979,6 @@ export function LiveScoringPage() {
       let winner: TeamSide | null = null;
       let resultText = '';
 
-      console.log('[Match Completion] Comparing scores - Innings 1:', innings1Runs, 'Innings 2:', innings2CalcRuns, 'Target:', innings2.target_runs);
-
       if (innings2CalcRuns >= innings2.target_runs!) {
         winner = innings2.batting_team;
         const wicketsLeft = maxWickets - inningsState.wickets;
@@ -901,8 +994,6 @@ export function LiveScoringPage() {
         resultText = 'Match tied';
       }
 
-      console.log('[Match Completion] Result:', resultText, 'Winner:', winner);
-
       await completeMatch.mutateAsync({
         matchId: match.id,
         winner,
@@ -914,9 +1005,7 @@ export function LiveScoringPage() {
       showToast('Match completed successfully!', 'match');
 
       try {
-        await updateStatsForCompletedMatch(match.id, (msg) => {
-          console.log('[Statistics]', msg);
-        });
+        await updateStatsForCompletedMatch(match.id);
 
         void queryClient.invalidateQueries({ queryKey: ['player-statistics'] });
         void queryClient.invalidateQueries({ queryKey: ['leaderboards'] });
@@ -1176,15 +1265,13 @@ export function LiveScoringPage() {
   const matchFormat = (match.match_format as 'short_boundary' | 'long_boundary') || 'short_boundary';
   const isShortBoundary = matchFormat === 'short_boundary';
 
-  // 1. INNINGS NOT STARTED, OR STARTED BUT NO DELIVERIES RECORDED YET
-  // The opening players exist only in client-side state and are only persisted to the DB by
-  // the first ball event. If the scorer refreshes after starting an innings but before the
-  // first delivery, there is no event to derive the opening players from (inningsState is
-  // null). Re-show the same setup form so the innings can be recovered and continued.
-  // The gate keys off `ballEvents.length === 0` (no deliveries yet) AND `startInningsRequested`
-  // so the form stays mounted while the opening players are being picked and only exits once
-  // the Start/Continue button has run handleStartInnings successfully.
-  const showOpeningSetup = activeInnings.status === 'not_started' || (activeInnings.status === 'in_progress' && ballEvents.length === 0 && !startInningsRequested);
+  // 1. INNINGS NOT STARTED, OR STARTED WITH NO DELIVERIES AND NO PERSISTED CREASE.
+  // The opening players are now persisted to the innings row (current_striker_id /
+  // current_non_striker_id / current_bowler_id) at Start and on every batsman/bowler change, so a
+  // refresh before the first delivery recovers them directly from the DB instead of re-showing the
+  // setup form. The setup form is only re-shown when the innings was started with no deliveries
+  // AND no persisted crease (e.g. an innings created before the crease columns existed).
+  const showOpeningSetup = activeInnings.status === 'not_started' || (activeInnings.status === 'in_progress' && ballEvents.length === 0 && !startInningsRequested && !(activeInnings.current_striker_id && activeInnings.current_non_striker_id));
   if (showOpeningSetup) {
     const resumingInnings = activeInnings.status === 'in_progress';
     return (
@@ -1309,8 +1396,8 @@ export function LiveScoringPage() {
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 {activeInnings.innings_number === 1 ? '1st Innings' : '2nd Innings'}
               </span>
-              <span className="hidden text-xs text-white/15 md:inline">•</span>
-              <span className="hidden truncate text-xs font-medium text-slate-300 md:inline">{match.match_name}</span>
+              <span className="hidden text-xs text-white/15 sm:inline">•</span>
+              <span className="hidden max-w-[38vw] truncate text-xs font-medium text-slate-300 sm:inline">{match.match_name}</span>
               <span className="hidden text-xs text-white/15 md:inline">•</span>
               <span className="hidden text-xs text-slate-400 md:inline">{battingTeamName} vs {bowlingTeamName}</span>
               <Badge variant={isShortBoundary ? 'warning' : 'success'} size="sm" className="!px-2.5">
@@ -1592,7 +1679,7 @@ export function LiveScoringPage() {
 
                 {inningsState.strikerId && inningsState.battingStats[inningsState.strikerId]?.balls === 0 && remainingBatsmen.length > 0 && (
                   <div className="mt-3">
-                    <SelectField value={inningsState.strikerId} onChange={(e) => setIncomingBatsmanId(e.target.value)}>
+                    <SelectField value={inningsState.strikerId} onChange={(e) => handleChangeStriker(e.target.value)}>
                       <option value={inningsState.strikerId}>Swap batsman</option>
                       {remainingBatsmen.map((id) => (
                         <option key={id} value={id}>{playerMap.get(id)}</option>
@@ -1647,7 +1734,7 @@ export function LiveScoringPage() {
 
                 {inningsState.nonStrikerId && inningsState.battingStats[inningsState.nonStrikerId]?.balls === 0 && remainingBatsmen.length > 0 && (
                   <div className="mt-3">
-                    <SelectField value={inningsState.nonStrikerId} onChange={(e) => setIncomingBatsmanId(e.target.value)}>
+                    <SelectField value={inningsState.nonStrikerId} onChange={(e) => handleChangeNonStriker(e.target.value)}>
                       <option value={inningsState.nonStrikerId}>Swap batsman</option>
                       {remainingBatsmen.map((id) => (
                         <option key={id} value={id}>{playerMap.get(id)}</option>
@@ -1955,7 +2042,7 @@ export function LiveScoringPage() {
                       {/* Runs */}
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3 backdrop-blur-xl">
                         <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Runs</div>
-                        <div className="grid grid-cols-6 gap-2">
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                           {[0, 1, 2, 3].map((runs) => (
                             <button
                               key={runs}
@@ -2006,7 +2093,7 @@ export function LiveScoringPage() {
                       {/* Extras */}
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3 backdrop-blur-xl">
                         <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Extras</div>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           {(['wide', 'no_ball', 'bye', 'leg_bye'] as ExtraType[]).map((type) => (
                             <button
                               key={type}
@@ -2189,3 +2276,5 @@ export function LiveScoringPage() {
     </div>
   );
 }
+
+

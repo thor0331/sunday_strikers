@@ -25,6 +25,7 @@ export function PartnershipCard({ ballEvents, strikerId, nonStrikerId }: Partner
         if (start === -1) start = i;
       }
     }
+    if (start === -1) return { fours: 0, sixes: 0 };
     let fours = 0;
     let sixes = 0;
     for (let i = start; i < ballEvents.length; i++) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Availability, BallEvent, Match, MatchPlayer } from '../types/models';
+import type { BallEvent, Match, MatchPlayer } from '../types/models';
 import { buildPlayerDashboardData, type PlayerStatsSource } from './playerDashboard';
 import {
   computeAchievements,
@@ -31,6 +31,7 @@ function ball(partial: Partial<BallEvent>): BallEvent {
     isWicket: partial.isWicket ?? false,
     wicketType: partial.wicketType ?? null,
     dismissedPlayerId: partial.dismissedPlayerId ?? null,
+    incomingBatsmanId: partial.incomingBatsmanId ?? null,
     fielderId: partial.fielderId ?? null,
     isLegalDelivery: partial.isLegalDelivery ?? true,
     notes: partial.notes ?? null,
@@ -76,18 +77,6 @@ function matchPlayer(partial: Partial<MatchPlayer>): MatchPlayer {
     batting_order: partial.batting_order ?? null,
     is_captain: partial.is_captain ?? false,
     created_at: partial.created_at ?? '2026-01-01T00:00:00Z',
-  };
-}
-
-function availability(partial: Partial<Availability>): Availability {
-  return {
-    id: partial.id ?? 'a-1',
-    match_id: partial.match_id ?? 'm1',
-    player_id: partial.player_id ?? 'p1',
-    status: partial.status ?? 'available',
-    note: null,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
   };
 }
 

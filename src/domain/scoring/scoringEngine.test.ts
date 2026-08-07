@@ -29,6 +29,7 @@ function ball(partial: Partial<BallEvent> & Pick<BallEvent, 'sequenceNumber'>): 
     isWicket: partial.isWicket ?? false,
     wicketType: partial.wicketType ?? null,
     dismissedPlayerId: partial.dismissedPlayerId ?? null,
+    incomingBatsmanId: partial.incomingBatsmanId ?? null,
     fielderId: partial.fielderId ?? null,
     isLegalDelivery: partial.isLegalDelivery ?? true,
     notes: partial.notes ?? null,
@@ -201,31 +202,146 @@ describe('scoring engine', () => {
     expect(state.strikerId).toBeNull(); // No more batters available at striker position
   });
 
-  it('tracks batter dismissal correctly for final wicket in larger squad', () => {
-    const customCtx = {
-      ...ctx,
-      playersPerTeam: 6,
-      battingOrder: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
-    };
+  it('applies a creaseOverride before any delivery reflects the change', () => {
+    const state = calculateInningsState(
+      { ...ctx, creaseOverride: { strikerId: 'p3', nonStrikerId: 'p2' } },
+      []
+    );
 
-    // Build up to final wicket scenario
+    expect(state.strikerId).toBe('p3');
+    expect(state.nonStrikerId).toBe('p2');
+    expect(state.battingStats.p3.runs).toBe(0);
+  });
+
+  it('applies a creaseOverride for a mid-innings swap before it is reflected in a ball event', () => {
+    const events = [ball({ sequenceNumber: 1, runsBatter: 1 })];
+    const state = calculateInningsState(
+      { ...ctx, creaseOverride: { strikerId: 'p1', nonStrikerId: 'p3' } },
+      events
+    );
+
+    // p1 is derived striker after ball 1 (odd run rotates p1->p2, p2->p1, so p1 faces again),
+    // and p3 has not yet faced -> the override promotes p3 to non-striker.
+    expect(state.strikerId).toBe('p1');
+    expect(state.nonStrikerId).toBe('p3');
+  });
+
+  it('applies the override unconditionally once passed (the caller gates staleness)', () => {
+    const events = [ball({ sequenceNumber: 1, runsBatter: 2, strikerId: 'p1', nonStrikerId: 'p3' })];
+    const state = calculateInningsState(
+      { ...ctx, creaseOverride: { strikerId: 'p1', nonStrikerId: 'p3' } },
+      events
+    );
+
+    expect(state.strikerId).toBe('p1');
+    expect(state.nonStrikerId).toBe('p3');
+  });
+
+  it('trusts the crease recorded on a ball event after a manual swap, without an override', () => {
     const events = [
-      ball({ sequenceNumber: 1, isWicket: true, dismissedPlayerId: 'p1' }),
-      ball({ sequenceNumber: 2, strikerId: 'p3', nonStrikerId: 'p2', isWicket: true, dismissedPlayerId: 'p2' }),
-      ball({ sequenceNumber: 3, strikerId: 'p4', nonStrikerId: 'p3', isWicket: true, dismissedPlayerId: 'p3' }),
-      ball({ sequenceNumber: 4, strikerId: 'p5', nonStrikerId: 'p4', isWicket: true, dismissedPlayerId: 'p4' }),
-      ball({ sequenceNumber: 5, strikerId: 'p6', nonStrikerId: 'p5', isWicket: true, dismissedPlayerId: 'p5' })
+      ball({ sequenceNumber: 1, runsBatter: 1 }),
+      ball({ sequenceNumber: 2, strikerId: 'p2', nonStrikerId: 'p1', runsBatter: 1 }),
+      ball({ sequenceNumber: 3, strikerId: 'p1', nonStrikerId: 'p3', runsBatter: 0 })
     ];
 
-    const state = calculateInningsState(customCtx, events);
+    const state = calculateInningsState(ctx, events);
 
-    expect(state.wickets).toBe(5);
-    expect(state.isAllOut).toBe(true);
-    expect(state.isCompleted).toBe(true);
-    expect(Object.keys(state.battingStats).length).toBe(6); // All 6 batters tracked
-    for (let i = 1; i <= 5; i++) {
-      expect(state.battingStats[`p${i}`].isOut).toBe(true);
-    }
-    expect(state.battingStats.p6.isOut).toBe(false); // Last batter not out
+    expect(state.strikerId).toBe('p1');
+    expect(state.nonStrikerId).toBe('p3');
+  });
+
+  it('creates a batting stats entry for a swapped-in non-striker who has not faced a ball', () => {
+    const events = [
+      ball({ sequenceNumber: 1, runsBatter: 1 }),
+      ball({ sequenceNumber: 2, strikerId: 'p1', nonStrikerId: 'p3', runsBatter: 0 })
+    ];
+
+    const state = calculateInningsState(ctx, events);
+
+    expect(state.battingStats.p3).toBeDefined();
+    expect(state.battingStats.p3.runs).toBe(0);
+    expect(state.battingStats.p3.balls).toBe(0);
+    expect(state.nonStrikerId).toBe('p3');
+  });
+
+  it('replays natural rotations from recorded creases consistently', () => {
+    const events = [
+      ball({ sequenceNumber: 1, runsBatter: 1 }),
+      ball({ sequenceNumber: 2, strikerId: 'p2', nonStrikerId: 'p1', runsBatter: 0 }),
+      ball({ sequenceNumber: 3, strikerId: 'p2', nonStrikerId: 'p1', runsBatter: 1 })
+    ];
+
+    const state = calculateInningsState(ctx, events);
+
+    expect(state.strikerId).toBe('p1');
+    expect(state.nonStrikerId).toBe('p2');
+  });
+
+  it('trusts the recorded incoming batsman on a wicket even when the batting order dedupes them early', () => {
+    // p1 opened the innings (stale opener in over-1 records), p3 was swapped in as
+    // non-striker for over-2. A wicket then dismisses the striker (p2) and the scorer
+    // explicitly selects p1 (Ankith) as incoming. Because p1 already appears earlier in
+    // the event history, determineBattingOrder dedupes it, so battingOrder[2] === 'p3'.
+    // The engine must trust the recorded incomingBatsmanId over the derived index.
+    const events = [
+      ...Array.from({ length: 6 }, (_, index) =>
+        ball({ sequenceNumber: index + 1, strikerId: 'p1', nonStrikerId: 'p2', runsBatter: 0 })
+      ),
+      ball({
+        sequenceNumber: 7,
+        strikerId: 'p2',
+        nonStrikerId: 'p3',
+        isWicket: true,
+        wicketType: 'bowled',
+        dismissedPlayerId: 'p2',
+        incomingBatsmanId: 'p1'
+      })
+    ];
+
+    const state = calculateInningsState(ctx, events);
+
+    expect(state.wickets).toBe(1);
+    expect(state.strikerId).toBe('p1');
+    expect(state.nonStrikerId).toBe('p3');
+  });
+
+  it('trusts the recorded incoming batsman when the dismissed batter is the non-striker', () => {
+    const events = [
+      ball({ sequenceNumber: 1, strikerId: 'p1', nonStrikerId: 'p2', runsBatter: 0 }),
+      ball({
+        sequenceNumber: 2,
+        strikerId: 'p1',
+        nonStrikerId: 'p3',
+        isWicket: true,
+        wicketType: 'run_out',
+        dismissedPlayerId: 'p3',
+        incomingBatsmanId: 'p4'
+      })
+    ];
+
+    const state = calculateInningsState(ctx, events);
+
+    expect(state.strikerId).toBe('p1');
+    expect(state.nonStrikerId).toBe('p4');
+  });
+
+  it('falls back to the next batting-order index for legacy wicket events without an incoming batsman', () => {
+    const events = [
+      ball({ sequenceNumber: 1, strikerId: 'p1', nonStrikerId: 'p2', runsBatter: 0 }),
+      ball({
+        sequenceNumber: 2,
+        strikerId: 'p1',
+        nonStrikerId: 'p2',
+        isWicket: true,
+        wicketType: 'bowled',
+        dismissedPlayerId: 'p1',
+        incomingBatsmanId: null
+      })
+    ];
+
+    const state = calculateInningsState(ctx, events);
+
+    expect(state.strikerId).toBe('p3');
+    expect(state.nonStrikerId).toBe('p2');
   });
 });

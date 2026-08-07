@@ -1,5 +1,3 @@
-import type { MatchFormat } from '../../types/models';
-
 interface MatchFormatBadgeProps {
   format: string | null;
   className?: string;
